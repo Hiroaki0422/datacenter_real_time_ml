@@ -1,42 +1,43 @@
-# Phase 1 — Data Exploration Findings (2026-07-04)
+# Phase 1 — Data Exploration Findings (2026-07-04, updated with 1y data)
 
-> Empirical results from the 7-day sample pulls. These inform the locked decisions in [DECISIONS.md](DECISIONS.md).
+> Empirical results from CAISO pulls. 7-day sample used for initial EDA; 1-year backfill executed on Colab Pro confirms thresholds on full data.
 
 ## Sample Data Inventory
 
 | Stream | File | Rows | Size | Date range | Status |
 |---|---|---|---|---|---|
-| CAISO 5-min LMP (3 zones) | `data/processed/caiso_lmp_7d_sample.parquet` | 5,799 | 247 KB | 2026-06-27 → 2026-07-04 | ✅ works |
-| CAISO 5-min fuel mix | `data/processed/caiso_fuel_mix_7d_sample.parquet` | 2,016 | 121 KB | 2026-06-27 → 2026-07-03 | ✅ works |
-| Open-Meteo (Santa Clara, hourly) | `data/processed/openmeteo_santaclara_7d_sample.parquet` | 168 | 11 KB | 2026-06-27 → 2026-07-03 | ✅ works |
+| CAISO 5-min LMP (3 zones) | `data/processed/caiso_lmp_1y.parquet` | 315,141 | 12 MB | 2025-07-04 → 2026-07-04 | ✅ from Colab |
+| CAISO 5-min LMP (3 zones) | `data/processed/caiso_lmp_7d_sample.parquet` | 5,799 | 247 KB | 2026-06-27 → 2026-07-04 | ✅ initial sample |
+| CAISO 5-min fuel mix | `data/processed/caiso_fuel_mix_1y.parquet` | 105,108 | 4.6 MB | 2025-07-04 → 2026-07-03 | ✅ from Colab |
+| CAISO 5-min fuel mix | `data/processed/caiso_fuel_mix_7d_sample.parquet` | 2,016 | 121 KB | 2026-06-27 → 2026-07-03 | ✅ initial sample |
+| Open-Meteo (50 CA DCs) | `data/processed/openmeteo_ca_dc_1y.parquet` | 441,600 | 5.4 MB | 2025-07-01 → 2026-07-04 | ⚠️ partial (50/227 sites) |
+| Open-Meteo (Santa Clara) | `data/processed/openmeteo_santaclara_7d_sample.parquet` | 168 | 11 KB | 2026-06-27 → 2026-07-03 | ✅ initial sample |
 | AWS Health events | (live JSON, not stored) | 2 events | ~113 KB | 2026-07-04 snapshot | ✅ works |
 | GCP Status incidents | (live JSON, not stored) | varies | ~47 KB | live | ✅ works |
 | Azure Status feed | (live RSS, not stored) | varies | ~591 B | live | ✅ works |
 
-## CAISO LMP — Key Stats (7-day sample)
+## CAISO LMP — Key Stats (1-year backfill)
 
 | Location | Mean | Std | Min | Max | Class 3 (extreme) % |
 |---|---|---|---|---|---|
-| TH_NP15_GEN-APND | $14.51 | $13.15 | -$12.59 | $126.93 | 1.48% |
-| TH_SP15_GEN-APND | $9.21 | $12.52 | -$20.87 | $39.93 | 2.44% |
-| TH_ZP26_GEN-APND | $11.06 | $12.95 | -$19.63 | $68.95 | 2.27% |
+| TH_NP15_GEN-APND | $31.94 | $24.19 | -$76.57 | **$1,149.81** | 0.88% |
+| TH_SP15_GEN-APND | $26.30 | $27.77 | -$66.26 | **$1,148.19** | 1.65% |
+| TH_ZP26_GEN-APND | $26.91 | $23.77 | -$105.95 | **$1,130.08** | 1.55% |
 
-**Observations**:
-- SP15 (Southern California) is the most volatile zone; NP15 (Northern CA) is calmer
-- Negative LMPs occur (oversupply periods, typical for CAISO with high solar)
-- Max LMP in 7d = $127 (NP15, likely a brief scarcity event)
+**Observations on 1y**:
+- **Max LMPs near $1,150/MWh** are 9x the 7d max — these are real scarcity events (winter cold snaps, gas price spikes, transmission constraints)
+- 1y class 3 rates (0.88-1.65%) are *lower* than 7d (1.48-2.44%) because 7d was a hot week that over-represented extreme hours
+- Negative LMPs (oversupply) reach -$106 in ZP26 — solar curtailment
 
-## Multi-Class Spike Label Frequency
-
-Using 4h-rolling baseline + thresholds (1.5x, 3.0x, 6.0x):
+## Multi-Class Spike Label Frequency (1-year data, 4h baseline, 1.5x/3x/6x)
 
 | Zone | Normal (0) | Moderate (1) | High (2) | Extreme (3) | n |
 |---|---|---|---|---|---|
-| NP15 | 84.27% | 11.62% | 2.63% | 1.48% | 1,824 |
-| SP15 | 81.67% | 12.12% | 3.77% | 2.44% | 1,724 |
-| ZP26 | 81.21% | 11.93% | 4.60% | 2.27% | 1,719 |
+| NP15 | 91.37% | 6.29% | 1.46% | 0.88% | 100,894 |
+| SP15 | 88.34% | 7.89% | 2.11% | 1.65% | 97,220 |
+| ZP26 | 88.17% | 8.10% | 2.17% | 1.55% | 97,847 |
 
-**Decision: keep these thresholds.** Class 0 is dominant (~82-84%), Class 3 is rare but present (1.5-2.4%), matching our target distribution. Class 1 is slightly higher than originally targeted (12% vs 7-10%) but acceptable.
+**Decision: KEEP thresholds at 1.5x/3x/6x with 4h baseline.** Class 0 is dominant (~88-91%), Class 3 is rare but present (0.88-1.65%). Distribution is workable for multi-class XGBoost with class weights.
 
 ## Sensitivity: Baseline Window
 

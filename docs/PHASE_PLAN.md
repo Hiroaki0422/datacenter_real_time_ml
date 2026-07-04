@@ -17,34 +17,46 @@
 
 ---
 
-## Phase 1 — Data Exploration ✅ MOSTLY DONE (2026-07-04)
+## Phase 1 — Data Exploration ✅ DONE (2026-07-04, 1y backfill received)
 **Goal**: Understand what's actually available, sizes, quirks, before designing features
 
 ### Status
-- [x] CAISO 5-min LMP pulled (7d, 3 trading hubs, 5,799 rows)
-- [x] CAISO fuel mix pulled (7d, 14 fuel types, 2,016 rows)
-- [x] Open-Meteo pulled (7d, Santa Clara centroid, 168 hourly rows)
+- [x] CAISO 5-min LMP pulled (1y, 3 trading hubs, 315,141 rows, 12 MB)
+- [x] CAISO fuel mix pulled (1y, 14 fuel types, 105,108 rows, 4.6 MB)
+- [x] Open-Meteo pulled (1y partial, 50/227 sites, 441,600 hourly rows, 5.4 MB)
 - [x] Status feeds verified (AWS, GCP, Azure JSON/RSS all accessible)
-- [x] Spike class frequencies computed — thresholds LOCKED at 1.5x/3.0x/6.0x with 4h baseline
+- [x] Spike class frequencies computed on 1y — thresholds CONFIRMED at 1.5x/3.0x/6.0x with 4h baseline
 - [x] GHG semantics clarified (system-wide, short tons/MWh of marginal generator)
-- [x] Colab handoff notebook created for 1y backfill
-- [ ] **1y backfill** — pending Colab Pro execution
-- [ ] **Weather for 227 CA DC sites** — currently only Santa Clara centroid; need per-site pull
-- [ ] EIA API tested — deferred (not needed if CAISO works)
+- [x] Colab backfill executed; output saved + committed to repo
 
 ### Deliverables (this phase)
-- `data/processed/caiso_lmp_7d_sample.parquet` — 5,799 rows, 247 KB
-- `data/processed/caiso_fuel_mix_7d_sample.parquet` — 2,016 rows, 121 KB
-- `data/processed/openmeteo_santaclara_7d_sample.parquet` — 168 rows, 11 KB
-- `notebooks/01_explore_caiso_lmp.py` — JupyText-style EDA
-- `notebooks/colab_handoff/01_caiso_1y_backfill.md` — Colab instructions
+- `data/processed/caiso_lmp_1y.parquet` — 315,141 rows × 11 cols, 12 MB
+- `data/processed/caiso_fuel_mix_1y.parquet` — 105,108 rows × 16 cols, 4.6 MB
+- `data/processed/openmeteo_ca_dc_1y.parquet` — 441,600 rows × 10 cols, 5.4 MB (50 of 227 sites)
+- `data/processed/caiso_lmp_7d_sample.parquet` — initial sample kept for fast iteration
+- `data/processed/caiso_fuel_mix_7d_sample.parquet` — initial sample kept
+- `data/processed/openmeteo_santaclara_7d_sample.parquet` — initial sample kept
+- `data/external/ca_dc_sites.csv` — 227 CA DCs (committed, small)
+- `notebooks/01_explore_caiso_lmp.ipynb` — EDA notebook (6 cells)
+- `notebooks/01_explore_caiso_lmp.py` — JupyText-style companion
+- `notebooks/colab_handoff/01_caiso_1y_backfill.md` — Colab instructions (executed)
+- `notebooks/colab_handoff/01_colab_run_log.ipynb` — actual Colab run with outputs (saved for reference)
 - `docs/PHASE1_FINDINGS.md` — empirical results, decisions, caveats
 
 ### Exit criteria
-- [x] Can answer "what's a typical LMP distribution for SP15?" with data
-- [x] Spike class frequencies known, thresholds confirmed
-- [x] Size budget clear: 7d fits in 250 KB; 1y ~12 MB; fits VPS easily
-- [ ] Per-site weather pulled (227 CA DC sites × 1y hourly)
+- [x] Can answer "what's a typical LMP distribution for SP15?" with 1y of data
+- [x] Spike class frequencies known, thresholds confirmed on full year
+- [x] Size budget clear: 1y fits in 17 MB; 5y would be ~85 MB
+- [ ] Per-site weather pulled for all 227 CA DC sites (50 done, 177 pending rate-limit reset)
+
+### Key Findings on 1y Data (see PHASE1_FINDINGS.md for full report)
+- NP15 mean LMP: $31.94, max $1,150 (vs $14.51 mean, $127 max in 7d)
+- SP15 mean LMP: $26.30, max $1,148 (vs $9.21, $40 in 7d)
+- ZP26 mean LMP: $26.91, max $1,130 (vs $11.06, $69 in 7d)
+- 7d sample under-represented winter peaks; 1y shows real scarcity events
+- Class 3 (extreme) frequency settled: 0.88% NP15, 1.65% SP15, 1.55% ZP26
+- Solar mean: 6,651 MW (vs 9,386 in 7d summer sample) — seasonal dip expected
+- Natural gas mean: 5,294 MW (vs 1,133 in 7d) — winter heating kicks in
 
 ### Key Findings (see PHASE1_FINDINGS.md for details)
 - CAISO 5-min LMP works via `get_lmp(date=...)`; range mode is broken

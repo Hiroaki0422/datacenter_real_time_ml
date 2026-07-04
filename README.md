@@ -3,7 +3,7 @@
 > **One-line thesis**: Predict 1–4 hour ahead wholesale electricity price surges and carbon intensity in CAISO, mapped onto California data center sites from the v1 dataset, to power a public "carbon-aware compute scheduling" advisory.
 
 ## Status
-- **Phase**: 1 (data exploration) — 7-day sample done, 1y backfill pending (Colab handoff prepared)
+- **Phase**: 1 (data exploration) ✅ DONE — 1y backfill received from Colab
 - **Started**: 2026-07-04
 - **Owner**: Hiroaki
 - **License**: TBD (probably MIT to match v1)
