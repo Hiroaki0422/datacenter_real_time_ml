@@ -1,0 +1,228 @@
+dc_id,name,provider,state,latitude,longitude,MW_total_power,wue_default,bws_score,climate_adj,caiso_zone
+DC-00039,Equinix: SV1 San Jose Data Center,Equinix,CA,37.24160355,-121.78331850529646,4.0,1.8,3.724,1.0,ZP26
+DC-00048,Equinix: SV5 San Jose Data Center,Equinix,CA,37.24189425,-121.78159761972708,15.0,1.8,3.724,1.0,ZP26
+DC-00055,Prime Data Centers: Prime Los Angeles - 4701 S. Santa Fe,Prime Data Centers,CA,34.001433522333365,-118.23030915642762,33.0,1.8,3.724,1.0,SP15
+DC-00056,Equinix: SV10 San Jose Data Center,Equinix,CA,37.24118895,-121.7847548396787,14.4,1.8,3.724,1.0,ZP26
+DC-00057,Equinix: LA4 El Segundo Data Center,Equinix,CA,33.921997876884426,-118.383118,0.5,1.8,3.724,1.0,SP15
+DC-00058,Amazon AWS: 2305 Mission College Blvd,Amazon AWS,CA,37.38872309507468,-121.9668334293932,,1.8,3.724,1.0,ZP26
+DC-00061,Microsoft Azure: West US-California,Microsoft Azure,CA,36.7394421,-119.78483,,1.8,3.724,1.0,ZP26
+DC-00086,Equinix: SV4 Sunnyvale Data Center,Equinix,CA,37.41460445,-122.01455581751011,8.0,1.8,3.724,1.0,ZP26
+DC-00088,Centersquare: LAX3 (Los Angeles) Irvine Data Center Campus,Centersquare,CA,33.68709305,-117.84797687554038,12.0,1.8,3.724,1.0,SP15
+DC-00108,Stack Infrastructure: SVY01 - Silicon Valley Data Center,Stack Infrastructure,CA,37.4023956,-121.8929143,9.0,1.8,3.724,1.0,ZP26
+DC-00126,Centersquare: Los Angeles (LA2-Irvine) Data Center,Centersquare,CA,33.6847703,-117.83669561457307,15.0,1.8,3.724,1.0,SP15
+DC-00177,DataBank: SNA2 Irvine Data Center,DataBank,CA,33.6878845,-117.84245228891338,8.0,1.8,3.724,1.0,SP15
+DC-00180,NTT Global Data Centers: CA3 Sacramento Data Center,NTT Global Data Centers,CA,38.652977932743255,-121.48771698263278,14.0,1.8,3.724,1.0,NP15
+DC-00186,Evocative: Santa Clara Data Center (SJC11),Evocative,CA,37.38858276926831,-121.96269568148674,9.0,1.8,3.724,1.0,ZP26
+DC-00195,Equinix: LA1 Los Angeles Data Center,Equinix,CA,34.0473499,-118.256999,2.3,1.8,3.724,1.0,SP15
+DC-00202,CoreSite: LA1 Los Angeles Data Center,CoreSite,CA,34.0478871,-118.2555541091128,,1.8,3.724,1.0,SP15
+DC-00208,Digital Realty: Silicon Valley SJC37 Data Center,Digital Realty,CA,37.3709829,-121.94721118096328,100.0,1.8,3.724,1.0,ZP26
+DC-00209,Prime Data Centers: Prime Bay Area - 26415 Corporate Ave,Prime Data Centers,CA,37.626012,-122.11339776290374,20.0,1.8,3.724,1.0,NP15
+DC-00210,DataBank: SNA1 Irvine Data Center,DataBank,CA,33.69043345,-117.84060025571904,2.64,1.8,3.724,1.0,SP15
+DC-00217,Digital Realty: Los Angeles LAX10 Data Center,Digital Realty,CA,34.0473499,-118.256999,27.0,1.8,3.724,1.0,SP15
+DC-00226,Digital Realty: Silicon Valley SFO12 Data Center,Digital Realty,CA,37.78873105,-122.3904690619859,15.0,1.8,3.724,1.0,NP15
+DC-00241,Prime Data Centers: Prime Santa Clara - 1111 Comstock,Prime Data Centers,CA,37.37500515,-121.95322522502798,9.0,1.8,3.724,1.0,ZP26
+DC-00245,Oracle: US West us-sanjose-1,Oracle,CA,37.3361663,-121.890591,,1.8,3.724,1.0,ZP26
+DC-00251,365 Data Centers: CA1 Rancho Cordova Data Center,365 Data Centers,CA,38.59550423752889,-121.27283894629872,5.0,1.8,3.724,1.0,NP15
+DC-00256,Centersquare: SFO1 Santa Clara Data Center Campus,Centersquare,CA,37.37145735,-121.96968428399867,8.0,1.8,3.724,1.0,ZP26
+DC-00260,ScaleMatrix: San Diego Data Center US-West 01,ScaleMatrix,CA,32.83772875,-117.13263900477504,20.0,1.8,3.724,1.0,SP15
+DC-00302,Digital Realty: Los Angeles LAX12 Data Center,Digital Realty,CA,33.915514,-118.384618492729,18.0,1.8,3.724,1.0,SP15
+DC-00310,CoreSite: LA2 Los Angeles Data Center,CoreSite,CA,34.0581157,-118.23539385682872,,1.8,3.724,1.0,SP15
+DC-00324,NFINIT: San Diego Data Center,NFINIT,CA,32.896971268602634,-117.20269332121312,2.9,1.8,3.724,1.0,SP15
+DC-00341,Evocative: Los Angeles Data Center (LAX2),Evocative,CA,34.0473499,-118.256999,30.0,1.8,3.724,1.0,SP15
+DC-00350,CoreSite: LA3 Los Angeles Data Center,CoreSite,CA,34.05849544610792,-118.22943232792188,,1.8,3.724,1.0,SP15
+DC-00356,TPx Communications: Sacramento Data Center,TPx Communications,CA,38.578011,-121.486633,,1.8,3.724,1.0,NP15
+DC-00358,QTS Data Centers: Sacramento Data Center,QTS Data Centers,CA,38.646312,-121.48627223043133,4.0,1.8,3.724,1.0,NP15
+DC-00359,Lumen: Bakersfield 2 Data Center,Lumen,CA,35.37341591836735,-119.01802897959185,,1.8,3.724,1.0,SP15
+DC-00360,NFINIT: Lightwave Data Center,NFINIT,CA,32.82785865,-117.12992659595538,1.7,1.8,3.724,1.0,SP15
+DC-00373,Digital Realty: Silicon Valley SJC29 Data Center,Digital Realty,CA,37.3750232,-121.9580962,6.2,1.8,3.724,1.0,ZP26
+DC-00376,Xyvest: 611 Wilshire Blvd Data Center,Xyvest,CA,34.06234691027145,-118.34757900601574,,1.8,3.724,1.0,SP15
+DC-00377,Vantage Data Centers: CA1 Santa Clara Data Center Campus,Vantage Data Centers,CA,37.3725693,-121.97365893917444,75.0,1.8,3.724,1.0,ZP26
+DC-00383,Digital Realty: Silicon Valley OAK10 Data Center,Digital Realty,CA,37.7992148,-122.2829762341164,14.5,1.8,3.724,1.0,NP15
+DC-00390,QTS Data Centers: Santa Clara Data Center,QTS Data Centers,CA,37.38874267985163,-121.96530188522574,7.5,1.8,3.724,1.0,ZP26
+DC-00399,Evocative: Redondo Beach Data Center (LAX14),Evocative,CA,33.889492585644724,-118.37004457097676,7.5,1.8,3.724,1.0,SP15
+DC-00401,Lumen: Los Angeles Data Center,Lumen,CA,33.73795510204082,-118.29503263265306,,1.8,3.724,1.0,SP15
+DC-00406,Digital Realty: Silicon Valley SJC11 Data Center,Digital Realty,CA,37.37642765,-121.94847572664035,9.0,1.8,3.724,1.0,ZP26
+DC-00410,Evocative: Emeryville Data Center (OAK1),Evocative,CA,37.846323,-122.29435,,1.8,3.724,1.0,NP15
+DC-00423,Fortress Data Centers: SF1: San Francisco,Fortress Data Centers: SF1,CA,37.7825848,-122.3917665432021,3.5,1.8,3.724,1.0,NP15
+DC-00441,Equinix: SV15 Silicon Valley Data Center,Equinix,CA,37.37533395653293,-121.98795470326084,,1.8,3.724,1.0,ZP26
+DC-00442,CloudHQ: SJC Campus United States,CloudHQ,CA,37.36028977148921,-121.94221917182529,,1.8,3.724,1.0,ZP26
+DC-00446,Rackspace: SJC2 San Jose Data Center,Rackspace,CA,37.3336276,-121.8879727376266,5.4,1.8,3.724,1.0,ZP26
+DC-00454,CoreSite: SV7 Silicon Valley Data Center,CoreSite,CA,37.30224047360288,-122.02897917718704,,1.8,3.724,1.0,ZP26
+DC-00463,Digital Realty: Silicon Valley SJC31 Data Center,Digital Realty,CA,37.37234705,-121.9482597108543,9.0,1.8,3.724,1.0,ZP26
+DC-00473,Digital Realty: Silicon Valley SJC14 Data Center,Digital Realty,CA,37.37576825,-121.95518440075934,9.0,1.8,3.724,1.0,ZP26
+DC-00476,UnitedLayer: One Wilshire Data Center,UnitedLayer,CA,34.0478871,-118.2555541091128,2.0,1.8,3.724,1.0,SP15
+DC-00487,Evocative: El Segundo Data Center (LAX10),Evocative,CA,33.915514,-118.384618492729,15.0,1.8,3.724,1.0,SP15
+DC-00488,Centersquare: SFO4 Santa Clara Data Center Campus,Centersquare,CA,37.37576825,-121.95518440075934,9.0,1.8,3.724,1.0,ZP26
+DC-00492,"IBM Cloud: SJC03 San Jose, CA",IBM Cloud,CA,37.3541132,-121.955174,,1.8,3.724,1.0,ZP26
+DC-00499,Lumen: Tustin 1 Data Center,Lumen,CA,33.7167573,-117.80577589423196,,1.8,3.724,1.0,SP15
+DC-00501,Aptum Technologies: LAX-600W7 Data Center,Aptum Technologies,CA,34.0479225,-118.2400661,0.015,1.8,3.724,1.0,SP15
+DC-00517,Digital Realty: Silicon Valley SC1 Data Center,Digital Realty,CA,37.36262782738254,-121.941613,60.0,1.8,3.724,1.0,ZP26
+DC-00518,China Telecom: Los Angeles Data Center,China Telecom,CA,34.0473499,-118.256999,,1.8,3.724,1.0,SP15
+DC-00521,Evocative: Santa Clara Data Center (SJC14),Evocative,CA,37.37488095,-121.9559990878378,9.0,1.8,3.724,1.0,ZP26
+DC-00523,Dynascale: Irvine Data Center,Dynascale,CA,33.68105165,-117.8417018671678,,1.8,3.724,1.0,SP15
+DC-00533,"Datacate, Inc: SJC1 Bay Area Santa Clara Data Center","Datacate, Inc",CA,37.38858276926831,-121.96269568148674,1.5,1.8,3.724,1.0,ZP26
+DC-00535,DataBank: LAX1 Los Angeles One Wilshire Data Center,DataBank,CA,34.0478871,-118.2555541091128,2.0,1.8,3.724,1.0,SP15
+DC-00536,Vantage Data Centers: CA2 Santa Clara Data Center,Vantage Data Centers,CA,37.36409,-121.94694871243269,69.0,1.8,3.724,1.0,ZP26
+DC-00537,QuadraNet: Los Angeles - Century Data Center,QuadraNet,CA,33.945920099999995,-118.39358763637972,2.2,1.8,3.724,1.0,SP15
+DC-00538,Equinix: LA2 Los Angeles Data Center,Equinix,CA,33.73795510204082,-118.29503263265306,0.7,1.8,3.724,1.0,SP15
+DC-00541,QuadraNet: Los Angeles - Downtown HQ Data Center,QuadraNet,CA,33.73884114285714,-118.28863897959184,,1.8,3.724,1.0,SP15
+DC-00552,Equinix: SV16 Silicon Valley Data Center,Equinix,CA,37.375831501947104,-121.98796081254868,,1.8,3.724,1.0,ZP26
+DC-00574,Telehouse: Los Angeles Data Center,Telehouse,CA,34.0482839,-118.2569578,2.5,1.8,3.724,1.0,SP15
+DC-00578,Evocative: San Jose Data Center (SJC7),Evocative,CA,37.3385488,-121.910161,,1.8,3.724,1.0,ZP26
+DC-00580,INAP: Los Angeles 1 Data Center,INAP,CA,33.889492585644724,-118.37004457097676,,1.8,3.724,1.0,SP15
+DC-00583,Equinix: SV17 Silicon Valley Data Center,Equinix,CA,37.37632906880751,-121.98796829812784,9.0,1.8,3.724,1.0,ZP26
+DC-00601,"IBM Cloud: SJC01 San Jose, CA",IBM Cloud,CA,37.37827855,-121.95808945412804,,1.8,3.724,1.0,ZP26
+DC-00604,Lumen: Riverside 1 Data Center,Lumen,CA,33.99749911652767,-117.34530149515574,,1.8,3.724,1.0,SP15
+DC-00622,CoreSite: SV1 San Jose Silicon Valley Data Center,CoreSite,CA,37.3341896,-121.8916972,,1.8,3.724,1.0,ZP26
+DC-00629,Hurricane Electric: Fremont 2 Data Center,Hurricane Electric,CA,37.47183805,-121.92033145317303,,1.8,3.724,1.0,ZP26
+DC-00630,Lumen: San Diego 1 Data Center,Lumen,CA,32.80905,-117.135902,,1.8,3.724,1.0,SP15
+DC-00641,BreezeHost.io: Los Angeles,BreezeHost.io,CA,34.16691819300021,-118.08814779801222,,1.8,3.724,1.0,SP15
+DC-00642,"IBM Cloud: SJC04 San Jose, CA",IBM Cloud,CA,37.3541132,-121.955174,,1.8,3.724,1.0,ZP26
+DC-00646,CoreSite: SV3 Silicon Valley Data Center,CoreSite,CA,37.3750707,-121.97171405,,1.8,3.724,1.0,ZP26
+DC-00672,24Shells Inc: LAX Data Center,24Shells Inc,CA,33.945920099999995,-118.39358763637972,,1.8,3.724,1.0,SP15
+DC-00674,Nautilus Data Technologies: Stockton 1 Data Center,Nautilus Data Technologies,CA,37.9640399,-121.36889387894954,8.0,1.8,3.724,1.0,NP15
+DC-00675,"Datacate, Inc: SMF1 Sacramento Rancho Cordova Data Center","Datacate, Inc",CA,38.593952124665535,-121.2684338404506,1.4,1.8,3.724,1.0,NP15
+DC-00679,H5 Data Centers: San Luis Obispo Data Center,H5 Data Centers,CA,35.255372,-120.64204933333332,,1.8,3.724,1.0,SP15
+DC-00697,Equinix: SV14 Silicon Valley Data Center,Equinix,CA,37.3765773,-121.98858251471844,,1.8,3.724,1.0,ZP26
+DC-00707,CoreSite: SV4 Silicon Valley Data Center,CoreSite,CA,37.37645390055803,-121.97028209777504,,1.8,3.724,1.0,ZP26
+DC-00711,Quest Technology Management: Quest High Availability Business Center,Quest Technology Management,CA,38.78829,-121.313874,,1.8,3.724,1.0,NP15
+DC-00722,Evocative: Santa Clara Data Center (SJC3),Evocative,CA,37.3780464,-121.954127675,,1.8,3.724,1.0,ZP26
+DC-00726,Cogent Communications: Anaheim Data Center,Cogent Communications,CA,33.83170605,-117.91830589271186,,1.8,3.724,1.0,SP15
+DC-00735,Hurricane Electric: Fremont 1 Data Center,Hurricane Electric,CA,37.48998375,-121.93101147935296,,1.8,3.724,1.0,ZP26
+DC-00748,LeaseWeb: San Francisco SFO-12 Data Center,LeaseWeb,CA,37.38827595,-121.8883576903381,,1.8,3.724,1.0,ZP26
+DC-00754,Digital Realty: Silicon Valley SJC10 Data Center,Digital Realty,CA,37.37579525,-121.9533356186873,18.0,1.8,3.724,1.0,ZP26
+DC-00757,Colocation America: LADC3 - Los Angeles Data Center,Colocation America,CA,34.0473499,-118.256999,27.0,1.8,3.724,1.0,SP15
+DC-00759,DataBank: SFO1 Silicon Valley Data Center,DataBank,CA,37.40658207189683,-121.96674223083876,3.0,1.8,3.724,1.0,ZP26
+DC-00760,Lumen: San Luis Obispo 1 Data Center,Lumen,CA,35.256807733486475,-120.64513970626184,,1.8,3.724,1.0,SP15
+DC-00767,Digital Realty: Silicon Valley SJC16 Data Center,Digital Realty,CA,37.37488095,-121.9559990878378,9.0,1.8,3.724,1.0,ZP26
+DC-00770,"Cato Digital, Inc: us-west-2","Cato Digital, Inc",CA,33.68709305,-117.84797687554038,,1.8,3.724,1.0,SP15
+DC-00786,Serverfarm: LAX1 Los Angeles Data Center,Serverfarm,CA,33.92167045,-118.38670108745032,12.0,1.8,3.724,1.0,SP15
+DC-00788,Prime Data Centers: Prime San Jose - 6580 Via Del Oro,Prime Data Centers,CA,37.23542835,-121.7822509242628,10.0,1.8,3.724,1.0,ZP26
+DC-00793,Prime Data Centers: Prime Santa Clara - 2215 Martin,Prime Data Centers,CA,37.3666621,-121.9628653,9.0,1.8,3.724,1.0,ZP26
+DC-00807,Lumen: Sunnyvale 1 Data Center,Lumen,CA,37.3734088,-121.98779957171573,6.0,1.8,3.724,1.0,ZP26
+DC-00813,Digital Realty: Silicon Valley SJC34 Data Center,Digital Realty,CA,37.3725693,-121.97365893917444,7.5,1.8,3.724,1.0,ZP26
+DC-00818,Cologix: SV1 Santa Clara Data Center,Cologix,CA,37.3652455,-121.9618432982298,20.0,1.8,3.724,1.0,ZP26
+DC-00823,EdgeConnex: SAC01 Sacramento Data Center,EdgeConnex,CA,38.59230265,-121.27744006540756,1.5,1.8,3.724,1.0,NP15
+DC-00830,CoreSite: SV2 Milpitas Silicon Valley Data Center,CoreSite,CA,37.405683,-121.91626034891232,,1.8,3.724,1.0,ZP26
+DC-00832,Cogent Communications: Los Angeles Data Center,Cogent Communications,CA,33.73884114285714,-118.28863897959184,,1.8,3.724,1.0,SP15
+DC-00833,NTT Communications: Sacramento CA1 & CA2 & CA3 Data Center,NTT Communications,CA,38.6529631,-121.4877168,,1.8,3.724,1.0,NP15
+DC-00850,Lumen: Fresno 1 Data Center,Lumen,CA,36.747500362416105,-119.81454153020134,,1.8,3.724,1.0,ZP26
+DC-00857,China Telecom: Coresite LA2 Data Center,China Telecom,CA,34.0581157,-118.23539385682872,,1.8,3.724,1.0,SP15
+DC-00866,Zenlayer: LAX2 Los Angeles Data Center,Zenlayer,CA,34.0581157,-118.23539385682872,,1.8,3.724,1.0,SP15
+DC-00877,LeaseWeb: Los Angeles LAX-12 Data Center,LeaseWeb,CA,34.051107200000004,-118.26591632340578,22.5,1.8,3.724,1.0,SP15
+DC-00878,Dynascale: West7Center Data Center,Dynascale,CA,34.051107200000004,-118.26591632340578,22.5,1.8,3.724,1.0,SP15
+DC-00904,"Deft, a Summit company: Silicon Valley, CA Data Center","Deft, a Summit company",CA,37.3725693,-121.97365893917444,,1.8,3.724,1.0,ZP26
+DC-00906,"China Telecom: Cyxtera SC4, SC5, SC9 Data Center",China Telecom,CA,37.39650653098678,-121.97959832685888,,1.8,3.724,1.0,ZP26
+DC-00909,EdgeConnex: SVC01 Santa Clara Data Center,EdgeConnex,CA,37.36604749490356,-121.95800487336253,1.8,1.8,3.724,1.0,ZP26
+DC-00912,Limestone Networks: LAX1 Los Angeles Data Center,Limestone Networks,CA,33.93073,-118.3831525,,1.8,3.724,1.0,SP15
+DC-00914,Lumen: San Bernardino 1 Data Center,Lumen,CA,34.1786737,-117.3479696,,1.8,3.724,1.0,SP15
+DC-00919,China Telecom: Coresite SV7 Data Center,China Telecom,CA,37.3022425,-122.0294633,,1.8,3.724,1.0,ZP26
+DC-00923,Lumen: Santa Barbara 1 Data Center,Lumen,CA,34.4144364,-119.69011213879602,,1.8,3.724,1.0,SP15
+DC-00924,CoreSite: SV8 Silicon Valley Data Center,CoreSite,CA,37.37708350762056,-121.97101808740564,,1.8,3.724,1.0,ZP26
+DC-00935,Zenlayer: LAX5 Los Angeles Data Center,Zenlayer,CA,34.0473499,-118.256999,,1.8,3.724,1.0,SP15
+DC-00944,Element Critical: Silicon Valley One Data Center,Element Critical,CA,37.373879739908766,-122.00260860512226,7.0,1.8,3.724,1.0,ZP26
+DC-00946,Cogent Communications: Pasadena Data Center,Cogent Communications,CA,34.16691819300021,-118.08814779801222,,1.8,3.724,1.0,SP15
+DC-00956,Lumen: Manchester 1 Data Center,Lumen,CA,38.96718779909359,-123.68706589546356,,1.8,3.724,1.0,NP15
+DC-00972,ColoCrossing: LA1 - Los Angeles Data Center,ColoCrossing,CA,33.73884114285714,-118.28863897959184,27.0,1.8,3.724,1.0,SP15
+DC-00975,China Telecom: Cyxtera LA1 Data Center,China Telecom,CA,33.9176631,-118.38635558122915,,1.8,3.724,1.0,SP15
+DC-00976,Vultr: Los Angeles,Vultr,CA,34.0536909,-118.242766,,1.8,3.724,1.0,SP15
+DC-00978,Lumen: Modesto 1 Data Center,Lumen,CA,37.644928285714286,-120.9999815510204,,1.8,3.724,1.0,NP15
+DC-00986,Prime Data Centers: Prime Santa Clara - 1231 Comstock,Prime Data Centers,CA,37.375002,-121.95487751669192,9.0,1.8,3.724,1.0,ZP26
+DC-00990,One Data Center America: Ontario CA Data Center,One Data Center America,CA,34.06634219563638,-117.56840371081654,,1.8,3.724,1.0,SP15
+DC-00997,TurnKey Internet: Los Angeles Data Center,TurnKey Internet,CA,33.73884114285714,-118.28863897959184,,1.8,3.724,1.0,SP15
+DC-01001,Hurricane Electric: San Jose (Silicon Valley) Data Center,Hurricane Electric,CA,37.3341274,-121.8914979,,1.8,3.724,1.0,ZP26
+DC-01021,LightEdge: San Diego I Data Center,LightEdge,CA,32.82785865,-117.12992659595538,2.9,1.8,3.724,1.0,SP15
+DC-01024,Digital Realty: Silicon Valley SJC15 Data Center,Digital Realty,CA,37.374996550000006,-121.9540769,45.0,1.8,3.724,1.0,ZP26
+DC-01038,China Telecom: Coresite LA1 Data Center,China Telecom,CA,34.0478871,-118.2555541091128,,1.8,3.724,1.0,SP15
+DC-01039,China Telecom: Cyxtera SC8 Data Center,China Telecom,CA,37.39695906762884,-121.9795955048226,,1.8,3.724,1.0,ZP26
+DC-01054,Centersquare: SFO3 Sunnyvale Data Center Campus,Centersquare,CA,37.373879739908766,-122.00260860512226,7.5,1.8,3.724,1.0,ZP26
+DC-01058,Colocation America: SFDC1 - San Francisco Data Center,Colocation America,CA,37.72345945,-122.3979578117962,4.8,1.8,3.724,1.0,NP15
+DC-01062,Lumen: Hayward 1 Data Center,Lumen,CA,37.6385118,-122.12992072485454,,1.8,3.724,1.0,NP15
+DC-01071,"Colovore, LLC: Santa Clara Data Center","Colovore, LLC",CA,37.37631100535106,-121.95337907832187,9.0,1.8,3.724,1.0,ZP26
+DC-01075,Atlantic.net: San Francisco Data Center,Atlantic.net,CA,37.3725693,-121.97365893917444,7.5,1.8,3.724,1.0,ZP26
+DC-01076,MOD Mission Critical: SV1 Data Center PoP,MOD Mission Critical,CA,37.24160355,-121.78331850529646,,1.8,3.724,1.0,ZP26
+DC-01080,Performive: LAX03 Data Center,Performive,CA,33.9263426,-118.39405558456365,,1.8,3.724,1.0,SP15
+DC-01083,Vantage Data Centers: CA3 Santa Clara Data Center,Vantage Data Centers,CA,37.370628800000006,-121.97448014230116,64.0,1.8,3.724,1.0,ZP26
+DC-01084,Cogent Communications: Oakland Data Center,Cogent Communications,CA,37.805716,-122.2681451,,1.8,3.724,1.0,NP15
+DC-01088,Zenlayer: SJC1 San Jose Data Center,Zenlayer,CA,37.24189425,-121.78159761972708,,1.8,3.724,1.0,ZP26
+DC-01093,Colocation America: LADC5 - Los Angeles Data Center,Colocation America,CA,34.0474283,-118.256409,,1.8,3.724,1.0,SP15
+DC-01102,Lumen: Sacramento 1 Data Center,Lumen,CA,38.5866774,-121.53014066608584,,1.8,3.724,1.0,NP15
+DC-01123,HostDime: Los Angeles Data Center,HostDime,CA,34.0473499,-118.256999,,1.8,3.724,1.0,SP15
+DC-01124,"Cato Digital, Inc: us-west-1","Cato Digital, Inc",CA,37.39695906762884,-121.9795955048226,,1.8,3.724,1.0,ZP26
+DC-01127,MOD Mission Critical: LA1 - LA1 Data Center PoP,MOD Mission Critical,CA,34.0473499,-118.256999,,1.8,3.724,1.0,SP15
+DC-01140,Hivelocity: LA1 Los Angeles Data Center,Hivelocity,CA,34.0478871,-118.2555541091128,,1.8,3.724,1.0,SP15
+DC-01155,Data Canopy: San Francisco,Data Canopy,CA,37.7796531,-122.3940005,4.3,1.8,3.724,1.0,NP15
+DC-01161,Cogent Communications: San Diego Town Center Data Center,Cogent Communications,CA,32.881032278777376,-117.20856972714188,,1.8,3.724,1.0,SP15
+DC-01170,Zenlayer: LAX1 Los Angeles Data Center,Zenlayer,CA,34.0478871,-118.2555541091128,,1.8,3.724,1.0,SP15
+DC-01182,Colocation America: LADC4 - Los Angeles Data Center,Colocation America,CA,33.73884114285714,-118.28863897959184,,1.8,3.724,1.0,SP15
+DC-01186,Lumen: San Diego 2 Data Center,Lumen,CA,32.82946715,-117.13388395420188,,1.8,3.724,1.0,SP15
+DC-01187,China Telecom: LA4 Data Center,China Telecom,CA,33.921997876884426,-118.383118,,1.8,3.724,1.0,SP15
+DC-01189,Equinix: SV11 Silicon Valley IBX Data Center,Equinix,CA,37.2424988,-121.78409255418704,,1.8,3.724,1.0,ZP26
+DC-01198,China Telecom: Digital Realty Santa Clara Data Center,China Telecom,CA,37.37488095,-121.9559990878378,,1.8,3.724,1.0,ZP26
+DC-01209,CyrusOne: SCV1 Silicon Valley Data Center,CyrusOne,CA,37.379478,-121.939528,67.5,1.8,3.724,1.0,ZP26
+DC-01212,"China Telecom: SV1, SV5 Data Center",China Telecom,CA,37.24160355,-121.78331850529646,,1.8,3.724,1.0,ZP26
+DC-01221,T5 Data Centers: @Silicon Valley Data Center,T5 Data Centers,CA,37.5099169,-122.00179214602387,8.5,1.8,3.724,1.0,NP15
+DC-01224,MDC Data Centers: SDG1 San Diego Data Center,MDC Data Centers,CA,32.59425265,-117.08534590073972,0.5,1.8,3.724,1.0,SP15
+DC-01245,China Telecom: QTS SC2 Data Center,China Telecom,CA,37.3948912,-121.9808412,,1.8,3.724,1.0,ZP26
+DC-01262,Cogent Communications: San Diego B Street Data center,Cogent Communications,CA,32.71752,-117.159724,,1.8,3.724,1.0,SP15
+DC-01270,Digital Realty: Los Angeles LAX11 Data Center,Digital Realty,CA,33.9176631,-118.38635558122915,,1.8,3.724,1.0,SP15
+DC-01279,China Telecom: SV3 Data Center,China Telecom,CA,37.38827595,-121.8883576903381,,1.8,3.724,1.0,ZP26
+DC-01280,CyberNest: Los Angeles,CyberNest,CA,33.921997876884426,-118.383118,,1.8,3.724,1.0,SP15
+DC-01290,Lumen: San Francisco 3 Data Center,Lumen,CA,37.72345945,-122.3979578117962,,1.8,3.724,1.0,NP15
+DC-01294,Hivelocity: SNV1 Sunnyvale CA,Hivelocity,CA,37.3995434,-122.01455511828144,,1.8,3.724,1.0,ZP26
+DC-01297,Digital Realty: Los Angeles BUR10 Data Center,Digital Realty,CA,34.19932857849869,-118.34276329126148,,1.8,3.724,1.0,SP15
+DC-01308,Enzu: SFO2 San Francisco Data Center,Enzu,CA,37.722831,-122.397847,,1.8,3.724,1.0,NP15
+DC-01311,LightEdge: San Diego II Data Center,LightEdge,CA,32.896971268602634,-117.20269332121312,2.9,1.8,3.724,1.0,SP15
+DC-01314,NTT Global Data Centers: CA1 Sacramento Data Center,NTT Global Data Centers,CA,38.6504317,-121.48918657861888,12.6,1.8,3.724,1.0,NP15
+DC-01315,11:11 Systems: Los Angeles Data Center,11:11 Systems,CA,34.0581157,-118.23539385682872,,1.8,3.724,1.0,SP15
+DC-01325,Colo Locker - Evocative: LAX01 Los Angeles Data Center,Colo Locker - Evocative,CA,34.0473499,-118.256999,,1.8,3.724,1.0,SP15
+DC-01328,Zenlayer: SJC2 San Jose Data Center,Zenlayer,CA,37.3783955,-121.95498394957325,,1.8,3.724,1.0,ZP26
+DC-01331,Xfernet: Los Angeles Data Center LA1 (600 W 7th St),Xfernet,CA,34.0473499,-118.256999,,1.8,3.724,1.0,SP15
+DC-01335,Colo Locker - Evocative: LAX02 Las Angeles Data Center,Colo Locker - Evocative,CA,34.0473499,-118.256999,,1.8,3.724,1.0,SP15
+DC-01339,Synoptek: Sacramento Data Center,Synoptek,CA,38.743922906381336,-121.23195421768531,10.0,1.8,3.724,1.0,NP15
+DC-01345,Cyberverse: LAX Los Angeles Data Center,Cyberverse,CA,34.0473499,-118.256999,30.0,1.8,3.724,1.0,SP15
+DC-01350,China Telecom: LA3 Data Center,China Telecom,CA,33.9263426,-118.39405558456365,,1.8,3.724,1.0,SP15
+DC-01351,Lumen: Fresno 2 Data Center,Lumen,CA,36.847683,-119.795764,,1.8,3.724,1.0,ZP26
+DC-01359,China Telecom: LA2 Data Center,China Telecom,CA,33.73795510204082,-118.29503263265306,,1.8,3.724,1.0,SP15
+DC-01360,NTT Global Data Centers: CA2 Sacramento Data Center,NTT Global Data Centers,CA,38.65039905,-121.49194665427194,26.1,1.8,3.724,1.0,NP15
+DC-01362,Enzu: SFO1 San Francisco Data Center,Enzu,CA,37.72345945,-122.3979578117962,,1.8,3.724,1.0,NP15
+DC-01364,MOD Mission Critical: LA2 - Evocative Data Center PoP,MOD Mission Critical,CA,34.0473499,-118.256999,27.0,1.8,3.724,1.0,SP15
+DC-01365,NETdepot: NETdepot - San Francisco,NETdepot,CA,37.48998375,-121.93101147935296,,1.8,3.724,1.0,ZP26
+DC-01374,INAP: Los Angeles 2 Data Center,INAP,CA,33.915514,-118.384618492729,5.3,1.8,3.724,1.0,SP15
+DC-01375,MOD Mission Critical: SND2 - Lightedge San Diego Data Center PoP,MOD Mission Critical,CA,32.82785865,-117.12992659595538,2.9,1.8,3.724,1.0,SP15
+DC-01381,Enzu: SJC1 Santa Clara Data Center,Enzu,CA,37.38858276926831,-121.96269568148674,,1.8,3.724,1.0,ZP26
+DC-01383,365 Data Centers: LA3 Los Angeles Data center,365 Data Centers,CA,34.0482839,-118.2569578,,1.8,3.724,1.0,SP15
+DC-01384,Xfernet: Los Angeles Data Center (Grand Ave),Xfernet,CA,34.0478871,-118.2555541091128,,1.8,3.724,1.0,SP15
+DC-01394,MOD Mission Critical: SND1 - Databank San Diego Data Center PoP,MOD Mission Critical,CA,32.9886013,-117.07324598812784,1.2,1.8,3.724,1.0,SP15
+DC-01397,INAP: Silicon Valley 1 Data Center,INAP,CA,37.38858276926831,-121.96269568148674,13.5,1.8,3.724,1.0,ZP26
+DC-01403,365 Data Centers: LA1 Los Angeles Data center,365 Data Centers,CA,34.0581157,-118.23539385682872,,1.8,3.724,1.0,SP15
+DC-01407,365 Data Centers: SJ1 San Jose Data Center,365 Data Centers,CA,37.3341274,-121.8914979,,1.8,3.724,1.0,ZP26
+DC-01414,365 Data Centers: SJ2 San Jose Data Center,365 Data Centers,CA,37.24160355,-121.78331850529646,,1.8,3.724,1.0,ZP26
+DC-01417,Enzu: SJC2 Santa Clara Data Center,Enzu,CA,37.3725693,-121.97365893917444,,1.8,3.724,1.0,ZP26
+DC-01418,NTT Global Data Centers: SV1 Silicon Valley Data Center,NTT Global Data Centers,CA,37.36905325,-121.9553377500602,6.0,1.8,3.724,1.0,ZP26
+DC-01420,INAP: Silicon Valley 3 Data Center,INAP,CA,37.24160355,-121.78331850529646,13.5,1.8,3.724,1.0,ZP26
+DC-01421,365 Data Centers: SC1 Santa Clara Data Center,365 Data Centers,CA,37.37645390055803,-121.97028209777504,,1.8,3.724,1.0,ZP26
+DC-01423,365 Data Centers: LA2 Los Angeles Data center,365 Data Centers,CA,34.0473499,-118.256999,,1.8,3.724,1.0,SP15
+DC-01424,NOVVA: San Francisco Data Center,NOVVA,CA,37.723561,-122.400192,36.0,1.8,3.724,1.0,NP15
+DC-01428,365 Data Centers: SV1 Sunnyvale Data Center,365 Data Centers,CA,37.373879739908766,-122.00260860512226,,1.8,3.724,1.0,ZP26
+DC-01454,Zenlayer: SJC7 San Jose Data Center,Zenlayer,CA,37.24160355,-121.78331850529646,,1.8,3.724,1.0,ZP26
+DC-01459,INAP: Oakland Data Center,INAP,CA,37.7992148,-122.2829762341164,,1.8,3.724,1.0,NP15
+DC-01461,Zenlayer: LAX8 Los Angeles Data Center,Zenlayer,CA,33.68709305,-117.84797687554038,,1.8,3.724,1.0,SP15
+DC-01468,Zenlayer: LAX7 Los Angeles Data Center,Zenlayer,CA,34.0473499,-118.256999,,1.8,3.724,1.0,SP15
+DC-01470,CenterServ: Anaheim Data Center,CenterServ,CA,33.804913880708504,-117.8839870110761,,1.8,3.724,1.0,SP15
+DC-01472,Zenlayer: SJC6 San Jose Data Center,Zenlayer,CA,37.24160355,-121.78331850529646,,1.8,3.724,1.0,ZP26
+DC-01473,Psychz Networks: Los Angeles Data Center,Psychz Networks,CA,34.021393,-118.49510178656811,,1.8,3.724,1.0,SP15
+DC-01480,Zenlayer: LAX9 Los Angeles Data Center,Zenlayer,CA,34.0588205,-118.235846,,1.8,3.724,1.0,SP15
+DC-01483,INAP: Silicon Valley 6 Data Center,INAP,CA,37.78873105,-122.3904690619859,13.5,1.8,3.724,1.0,NP15
+DC-01484,Centersquare: Los Angeles (LAX1-Hawthorne) Data Center,Centersquare,CA,33.9237936912292,-118.32063354286429,28.0,1.8,3.724,1.0,SP15
+DC-01486,NaviSite: Santa Clara Data Center,NaviSite,CA,37.3927431,-121.92674315001268,1.2,1.8,3.724,1.0,ZP26
+DC-01489,Voxility: CoreSite LA2 data center Los Angeles,Voxility,CA,34.0581157,-118.23539385682872,1.0,1.8,3.724,1.0,SP15
+DC-01495,Voxility: CoreSite LA1 (One Wilshire) data center Los Angeles,Voxility,CA,34.0478871,-118.2555541091128,2.0,1.8,3.724,1.0,SP15
+DC-01497,"Zayo: San Diego, California",Zayo,CA,32.9886013,-117.07324598812784,,1.8,3.724,1.0,SP15
+DC-01525,CenterServ: Chula Vista Data Center,CenterServ,CA,32.6343425,-117.0784656,,1.8,3.724,1.0,SP15
+DC-01527,CenterServ: Riverside Data Center,CenterServ,CA,33.9015679,-117.493543273595,,1.8,3.724,1.0,SP15
+DC-01542,CenterServ: Glendale Data Center,CenterServ,CA,34.15269515,-118.2545802415746,,1.8,3.724,1.0,SP15
+DC-01562,CenterServ: Oakland Data Center,CenterServ,CA,37.804723550000006,-122.27289460968714,,1.8,3.724,1.0,NP15
+DC-01569,"Krypt: Data Center Los Angeles, CA (LAX16)",Krypt,CA,34.0478871,-118.2555541091128,,1.8,3.724,1.0,SP15
+DC-01570,CenterServ: Long Beach Data Center,CenterServ,CA,33.76717489285714,-118.19265644642856,,1.8,3.724,1.0,SP15
+DC-01573,"Krypt: Data Center El Segundo, CA (LAX13)",Krypt,CA,33.90339696998065,-118.38858495193874,15.0,1.8,3.724,1.0,SP15

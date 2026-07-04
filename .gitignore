@@ -1,0 +1,59 @@
+# === Data — never commit datasets ===
+# Raw downloads (immutable)
+data/raw/
+
+# Processed parquet files (can be regenerated)
+data/processed/*.parquet
+
+# Exception: the small static CA DC sites CSV IS committed (it's a tiny
+# extract of the v1 dataset that we treat as a public input)
+# data/external/ca_dc_sites.csv — KEPT
+
+# .env files (API keys, secrets)
+data/external/.env
+*.env
+.env
+
+# === Models — large serialized artifacts ===
+models/*.pkl
+models/*.joblib
+models/*.onnx
+models/v*/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# === Notebooks ===
+.ipynb_checkpoints/
+notebooks/.env
+.jupyter/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === IDE ===
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# === Logs / cache ===
+*.log
+artifacts/logs/
+
+# === Open-Meteo requests_cache ===
+.cache.sqlite
+.cache/
+.cache_weather/
+
+# === Stream / feature store ===
+*.db
+*.sqlite
+*.sqlite3
