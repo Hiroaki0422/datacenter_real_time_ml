@@ -184,39 +184,93 @@ def add_cross_zone_features(features: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def compute_target_label(features: pd.DataFrame) -> pd.DataFrame:
-    """Compute multi-class spike label per zone per timestamp.
+def winsorize_features(features: pd.DataFrame, exclude_cols: list) -> pd.DataFrame:
+    """Winsorize numeric features at 0.1% / 99.9% percentiles.
 
-    Important: this uses RAW LMP (not shifted) because we want the *current* state
-    as the target. Features should be shifted to prevent leakage.
+    Per DECISIONS.md: handles extreme values from edge cases (e.g., LMP jumps
+    from near-zero to high value, producing 100,000%+ pct_change).
 
-    Baseline is computed over a 4-hour rolling window. At 5-min granularity,
-    4h = 48 intervals.
+    - All numeric features: clip at 0.1th and 99.9th percentile
+    - pct_change columns: hard-clipped to ±100 (1,000,000% is not meaningful)
+    - Preserves all rows; only caps magnitudes
     """
-    print("Computing spike class target...")
-    WINDOW_INT = 48  # 4h × 12 (5-min intervals per hour)
+    print("Winsorizing features at 0.1% / 99.9% percentiles...")
+    features = features.copy()
+    n_clipped = 0
+    for col in features.columns:
+        if col in exclude_cols:
+            continue
+        if not pd.api.types.is_numeric_dtype(features[col]):
+            continue
+        try:
+            if 'pct_change' in col:
+                # Hard cap: 100x change is already extreme
+                n_low = (features[col] < -100).sum()
+                n_high = (features[col] > 100).sum()
+                features[col] = features[col].clip(-100, 100)
+                n_clipped += int(n_low + n_high)
+            else:
+                # Percentile cap
+                q_lo = float(features[col].quantile(0.001))
+                q_hi = float(features[col].quantile(0.999))
+                if abs(q_hi) < 1e10 and abs(q_lo) < 1e10:
+                    n_low = (features[col] < q_lo).sum()
+                    n_high = (features[col] > q_hi).sum()
+                    features[col] = features[col].clip(q_lo, q_hi)
+                    n_clipped += int(n_low + n_high)
+        except (TypeError, ValueError):
+            pass
+    print(f"  Values clipped: {n_clipped:,}")
+    return features
+
+
+def compute_target_label(features: pd.DataFrame) -> pd.DataFrame:
+    """Compute continuous regression targets.
+
+    Targets (all continuous, all 4h forward horizon):
+      - lmp_target_4h: mean LMP in next 4h (level, $/MWh)
+      - lmp_ratio_target_4h: mean (LMP / 4h baseline) in next 4h (ratio)
+      - ghg_target_4h: mean GHG in next 4h (carbon, short tons/MWh)
+
+    The 4h forward horizon is used because 1h is too short for meaningful
+    forward-looking signal (mostly zeros for GHG; LMP forward signal is short).
+
+    We do NOT classify (no spike_class column). Multi-class was rejected
+    in DECISIONS.md in favor of regression.
+    """
+    print("Computing continuous regression targets...")
+    WINDOW_INT = 48  # 4h × 12 (5-min intervals per hour) — for baseline computation
+    FORWARD_HORIZON_LONG = 48  # 4h forward
     parts = []
     for zone, sub in features.groupby('zone', sort=False):
         sub = sub.sort_values('Time').copy()
-        # Use integer-based rolling on the raw LMP (not shifted) to compute the
-        # target ratio. Min periods = 1 so the first 47 intervals get a baseline.
+
+        # Baseline for ratio target (shifted: only past data)
         baseline = sub['LMP'].rolling(WINDOW_INT, min_periods=1).mean()
-        ratio = sub['LMP'] / baseline
-        labels = pd.cut(ratio,
-                        bins=[0, *SPIKE_THRESHOLDS, float('inf')],
-                        labels=[0, 1, 2, 3],
-                        right=False)
-        sub['spike_class'] = labels.astype('Int64')
-        # Forward-looking target: max spike class in next 12 intervals (1h ahead)
-        sub['spike_class_target_1h'] = sub['spike_class'].shift(-12).rolling(12).max()
-        sub['spike_class_target_1h'] = sub['spike_class_target_1h'].astype('Int64')
-        # Carbon target: mean GHG in next 12 intervals
-        sub['ghg_target_1h'] = sub['GHG'].shift(-12).rolling(12).mean()
+
+        # === Forward-looking targets (4h) ===
+        # LMP level: mean LMP in next 4h
+        sub['lmp_target_4h'] = sub['LMP'].shift(-FORWARD_HORIZON_LONG).rolling(FORWARD_HORIZON_LONG).mean()
+        # LMP ratio: mean (LMP / 4h baseline) in next 4h — directly comparable to current
+        future_lmp = sub['LMP'].shift(-FORWARD_HORIZON_LONG).rolling(FORWARD_HORIZON_LONG).mean()
+        future_baseline = baseline.shift(-FORWARD_HORIZON_LONG).rolling(FORWARD_HORIZON_LONG).mean()
+        sub['lmp_ratio_target_4h'] = future_lmp / future_baseline.replace(0, np.nan)
+        # Clip extreme ratio targets (rare cases where forward baseline is near 0)
+        sub['lmp_ratio_target_4h'] = sub['lmp_ratio_target_4h'].clip(0, 10)
+        # GHG: mean carbon intensity in next 4h
+        sub['ghg_target_4h'] = sub['GHG'].shift(-FORWARD_HORIZON_LONG).rolling(FORWARD_HORIZON_LONG).mean()
+
         parts.append(sub)
 
     out = pd.concat(parts, ignore_index=True)
-    n_with_target = out['spike_class_target_1h'].notna().sum()
-    print(f"  Total rows: {len(out):,}, with 1h target: {n_with_target:,}")
+    n_lmp = out['lmp_target_4h'].notna().sum()
+    n_ratio = out['lmp_ratio_target_4h'].notna().sum()
+    n_ghg = out['ghg_target_4h'].notna().sum()
+    print(f"  Total rows: {len(out):,}")
+    print(f"  With lmp_target_4h: {n_lmp:,}")
+    print(f"  With lmp_ratio_target_4h: {n_ratio:,}")
+    print(f"  With ghg_target_4h: {n_ghg:,}")
+    print(f"  Non-zero ghg_target_4h: {int((out['ghg_target_4h'] > 0).sum()):,}")
     return out
 
 
@@ -262,20 +316,37 @@ def validate_features(features: pd.DataFrame) -> dict:
                              for k, v in date_ranges.iterrows()}
     print(f"  Date ranges: {report['date_ranges']}")
 
-    # 5. Target distribution
-    target_dist = features['spike_class'].value_counts().sort_index()
-    report['spike_class_dist'] = {int(k): int(v) for k, v in target_dist.items()}
-    print(f"  Spike class distribution: {report['spike_class_dist']}")
+    # 5. Target distributions (continuous)
+    if 'spike_class' in features.columns:
+        target_dist = features['spike_class'].value_counts().sort_index()
+        report['spike_class_dist'] = {int(k): int(v) for k, v in target_dist.items()}
+        print(f"  Spike class distribution: {report['spike_class_dist']}")
+        total = features['spike_class'].notna().sum()
+        report['spike_class_pct'] = {k: round(v / total * 100, 2)
+                                      for k, v in report['spike_class_dist'].items()}
+        print(f"  Spike class pct: {report['spike_class_pct']}")
 
-    # 6. Class distribution as percent
-    total = features['spike_class'].notna().sum()
-    report['spike_class_pct'] = {k: round(v / total * 100, 2)
-                                  for k, v in report['spike_class_dist'].items()}
-    print(f"  Spike class pct: {report['spike_class_pct']}")
+    # Continuous target stats
+    for tgt in ['lmp_target_4h', 'lmp_ratio_target_4h', 'ghg_target_4h']:
+        if tgt in features.columns:
+            arr = features[tgt].dropna()
+            report[f'{tgt}_stats'] = {
+                'count': int(len(arr)),
+                'mean': float(arr.mean()) if len(arr) else None,
+                'std': float(arr.std()) if len(arr) else None,
+                'min': float(arr.min()) if len(arr) else None,
+                'p50': float(arr.median()) if len(arr) else None,
+                'p95': float(arr.quantile(0.95)) if len(arr) else None,
+                'p99': float(arr.quantile(0.99)) if len(arr) else None,
+                'max': float(arr.max()) if len(arr) else None,
+                'pct_nonzero': float((arr > 0).mean() * 100) if len(arr) else 0.0,
+            }
+            print(f"  {tgt}: mean={arr.mean():.2f}, p95={arr.quantile(0.95):.2f}, max={arr.max():.2f}")
 
     # 7. Forward target distribution
-    fwd_dist = features['spike_class_target_1h'].value_counts().sort_index()
-    report['spike_class_target_1h_dist'] = {int(k): int(v) for k, v in fwd_dist.items()}
+    if 'spike_class_target_1h' in features.columns:
+        fwd_dist = features['spike_class_target_1h'].value_counts().sort_index()
+        report['spike_class_target_1h_dist'] = {int(k): int(v) for k, v in fwd_dist.items()}
 
     return report
 
@@ -301,13 +372,23 @@ def main():
     features = add_fuel_mix_features(features, fm)
     features = add_cross_zone_features(features)
 
-    # Compute targets
+    # Winsorize (outlier handling)
+    exclude = ['Time', 'zone', 'LMP', 'GHG',
+               'lmp_target_4h', 'lmp_ratio_target_4h', 'ghg_target_4h']
+    features = winsorize_features(features, exclude_cols=exclude)
+
+    # Compute targets (do this AFTER winsorize so target isn't clipped)
     features = compute_target_label(features)
 
     # Class weights (use only training-period class frequencies for realistic weights)
-    train_mask = features['Time'] < TRAIN_END
-    class_weights = compute_class_weights(features[train_mask])
-    print(f"  Class weights: {class_weights}")
+    # Class weights are no longer needed for regression but keep for reference
+    if 'spike_class' in features.columns:
+        train_mask = features['Time'] < TRAIN_END
+        class_weights = compute_class_weights(features[train_mask])
+        print(f"  Class weights (legacy): {class_weights}")
+    else:
+        class_weights = {}
+        print("  No class weights (regression mode)")
 
     # Validate
     report = validate_features(features)
@@ -317,7 +398,6 @@ def main():
     out_path = PROCESSED / 'features_offline.parquet'
     features.to_parquet(out_path)
     print(f"\nSaved features: {out_path} ({os.path.getsize(out_path)/1024/1024:.1f} MB)")
-
     # Time split + save train/val/test
     features = time_split(features)
     for split in ['train', 'val', 'test']:
@@ -330,14 +410,16 @@ def main():
     schema = {
         'feature_columns': [c for c in features.columns
                             if c not in ['Time', 'zone', 'split',
-                                         'LMP', 'spike_class', 'spike_class_target_1h',
-                                         'ghg_target_1h', 'GHG']],
-        'target_columns': ['spike_class', 'spike_class_target_1h', 'ghg_target_1h'],
+                                         'LMP', 'GHG',
+                                         'lmp_target_4h', 'lmp_ratio_target_4h', 'ghg_target_4h']],
+        'target_columns': ['lmp_target_4h', 'lmp_ratio_target_4h', 'ghg_target_4h'],
         'identifier_columns': ['Time', 'zone'],
         'spike_thresholds': SPIKE_THRESHOLDS,
         'spike_window': SPIKE_WINDOW,
         'train_end': str(TRAIN_END),
         'val_end': str(VAL_END),
+        'winsorize_percentiles': '0.1% / 99.9%',
+        'pct_change_hard_clip': 100,
     }
     with open(ARTIFACTS / 'feature_schema.json', 'w') as f:
         json.dump(schema, f, indent=2)
@@ -349,7 +431,7 @@ def main():
     print("\n✓ Feature pipeline complete")
     print(f"  features_offline.parquet: {features.shape[0]:,} rows × {features.shape[1]} cols")
     print(f"  Feature columns: {len(schema['feature_columns'])}")
-    print(f"  Class weights: {class_weights}")
+    print(f"  Target columns: {schema['target_columns']}")
 
 
 if __name__ == '__main__':

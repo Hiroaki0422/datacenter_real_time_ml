@@ -99,3 +99,37 @@
 | Authenticated public API | Adds operational overhead; v1 is open, rate-limited |
 | Build own map of substations | OSM Overpass + EIA-930 sufficient |
 | Drop Open-Meteo | Already in v1, zero ramp cost |
+| **Multi-class spike classifier** | **Replaced with regression on lmp_target_4h (continuous LMP ratio) — no threshold debate, no class-imbalance pain, more useful downstream** |
+| **Binary GHG classifier** | **Replaced with regression on ghg_target_4h (continuous) — binary was a workaround for data sparsity, regression is the real ask** |
+
+## Revised ML Problems (2026-07-04, mid-Phase 3)
+
+**Original plan**: 4-class classifier for spike (Normal/Moderate/High/Extreme) + binary GHG + multi-output
+**Revised plan**: Two regression models
+- **Model A — LMP ratio regressor**: predict `lmp_target_4h` = mean LMP / 4h-rolling mean in next 4h (continuous)
+  - "When will the grid be expensive relative to baseline?"
+  - Used directly for "shift workload" advisory at any threshold
+- **Model B — Carbon regressor**: predict `ghg_target_4h` = mean GHG in next 4h (continuous, short tons/MWh)
+  - "When will the grid be carbon-heavy?"
+  - Used for "carbon-aware scheduling" advisory
+
+**Why we switched**:
+1. No class imbalance to fight (no need for class weights)
+2. No threshold debate (operator picks their own cutoff)
+3. More useful for downstream consumers (continuous value, not categorical label)
+4. The "advisory" rule becomes a simple threshold on the prediction, applied downstream
+5. Multi-class log loss baseline (11.18) was uninformative — regression gives clearer metrics (MAE, RMSE, R²)
+
+**Constraint**: Model B (carbon) only has positive labels in May–Jul 2026 due to CAISO API publication scope. We'll train on what's available and document the limitation.
+
+## Outlier Handling (2026-07-04, mid-Phase 3)
+
+**Problem**: `lmp_pct_change_60m` had values up to 278,390 (from LMP near 0 in prior period). Broke XGBoost training with "Input data contains inf or a value too large."
+
+**Solution**: Winsorize at 1st/99.9th percentile, applied per-column in the feature engineering pipeline. Applied to:
+- All numeric features (cap at 0.1% / 99.9% percentiles)
+- Special: `pct_change` columns hard-clipped to ±100 (1,000,000% change is meaningless even as a signal)
+
+**Why not filter**: A 278,390% LMP jump IS a real market event (oversupply transition). Winsorizing preserves the row but caps the magnitude so it doesn't dominate the model.
+
+**Why not log-transform**: Tried implicitly via `lmp_ratio_4h` as target — but features themselves are still in raw scale. Could add log1p on highly skewed columns if model performance suffers.

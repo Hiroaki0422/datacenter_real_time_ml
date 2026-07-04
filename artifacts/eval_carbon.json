@@ -1,0 +1,20 @@
+{
+  "model": "xgb_regression_ghg_4h",
+  "n_features": 51,
+  "best_iteration": 0,
+  "val": {
+    "mae": 0.0,
+    "rmse": 0.0,
+    "r2": 0,
+    "mae_nonzero": 0,
+    "rmse_nonzero": 0
+  },
+  "test": {
+    "mae": 1.6316897869110107,
+    "rmse": 3.673773222152556,
+    "r2": -0.245741605758667,
+    "mae_nonzero": 4.554436206817627,
+    "rmse_nonzero": 6.137773856523093
+  },
+  "data_caveat": "CAISO only publishes GHG for last ~90 days. Train/val mostly zero. Test (Apr-Jul 2026) has the actual events."
+}

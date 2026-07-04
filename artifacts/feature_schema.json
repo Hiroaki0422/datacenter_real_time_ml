@@ -47,9 +47,9 @@
     "lmp_max_across_zones_60m"
   ],
   "target_columns": [
-    "spike_class",
-    "spike_class_target_1h",
-    "ghg_target_1h"
+    "lmp_target_4h",
+    "lmp_ratio_target_4h",
+    "ghg_target_4h"
   ],
   "identifier_columns": [
     "Time",
@@ -62,5 +62,7 @@
   ],
   "spike_window": "4h",
   "train_end": "2026-01-01 00:00:00-08:00",
-  "val_end": "2026-04-01 00:00:00-07:00"
+  "val_end": "2026-04-01 00:00:00-07:00",
+  "winsorize_percentiles": "0.1% / 99.9%",
+  "pct_change_hard_clip": 100
 }
