@@ -1,0 +1,82 @@
+{
+  "shape": [
+    315141,
+    52
+  ],
+  "nan_counts_per_col": {
+    "lmp_mean_60m": 3,
+    "lmp_std_60m": 9,
+    "lmp_mean_4h": 3,
+    "lmp_std_4h": 6,
+    "lmp_mean_24h": 3,
+    "lmp_std_24h": 6,
+    "lmp_max_24h": 3,
+    "lmp_min_24h": 3,
+    "energy_60m_mean": 3,
+    "congestion_60m_mean": 3,
+    "loss_60m_mean": 3,
+    "ghg_60m_mean": 3,
+    "lmp_lag_1": 3,
+    "lmp_lag_12": 36,
+    "lmp_lag_48": 144,
+    "lmp_slope_60m": 9,
+    "lmp_pct_change_5m": 58,
+    "lmp_pct_change_60m": 41,
+    "lmp_range_4h": 3,
+    "solar_mw_60m_mean": 591,
+    "wind_mw_60m_mean": 591,
+    "natural_gas_mw_60m_mean": 591,
+    "imports_mw_60m_mean": 591,
+    "nuclear_mw_60m_mean": 591,
+    "large_hydro_mw_60m_mean": 591,
+    "batteries_mw_60m_mean": 591,
+    "lmp_max_across_zones_60m": 3,
+    "spike_class": 19180,
+    "spike_class_target_1h": 34684,
+    "ghg_target_1h": 69
+  },
+  "total_nans": 58415,
+  "zone_counts": {
+    "NP15": 105047,
+    "SP15": 105047,
+    "ZP26": 105047
+  },
+  "date_ranges": {
+    "NP15": {
+      "start": "2025-07-04 21:30:00-07:00",
+      "end": "2026-07-04 15:20:00-07:00"
+    },
+    "SP15": {
+      "start": "2025-07-04 21:30:00-07:00",
+      "end": "2026-07-04 15:20:00-07:00"
+    },
+    "ZP26": {
+      "start": "2025-07-04 21:30:00-07:00",
+      "end": "2026-07-04 15:20:00-07:00"
+    }
+  },
+  "spike_class_dist": {
+    "0": 264345,
+    "1": 21948,
+    "2": 5653,
+    "3": 4015
+  },
+  "spike_class_pct": {
+    "0": 89.32,
+    "1": 7.42,
+    "2": 1.91,
+    "3": 1.36
+  },
+  "spike_class_target_1h_dist": {
+    "0": 231390,
+    "1": 36516,
+    "2": 8016,
+    "3": 4535
+  },
+  "class_weights": {
+    "0": 1.0,
+    "1": 18.553988771380073,
+    "2": 93.53135921754983,
+    "3": 93.53135921754983
+  }
+}
