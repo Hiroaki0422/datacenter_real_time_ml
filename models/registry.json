@@ -1,7 +1,147 @@
 {
   "schema_version": "1.0",
-  "champion": null,
-  "candidates": [],
+  "champion": {
+    "version": "v0.1",
+    "registered_at": "2026-07-05T01:35:29.253753+00:00",
+    "git_sha": "47b4079",
+    "data_hash": "444b16fbfb83",
+    "metrics": {
+      "lmp_ratio": {
+        "model": "xgb_regression_lmp_ratio_4h",
+        "n_features": 51,
+        "best_iteration": 16,
+        "val": {
+          "mae": 0.35786494612693787,
+          "rmse": 0.9251171256994217,
+          "r2": 0.17516767978668213
+        },
+        "test": {
+          "mae": 0.7135316729545593,
+          "rmse": 1.3867360718410882,
+          "r2": 0.029620707035064697
+        },
+        "baseline_hour_mean": {
+          "n_val": 77760,
+          "n_train": 155469,
+          "hour_mean": {
+            "mae": 0.3682128675751487,
+            "rmse": 0.978934501590784,
+            "r2": 0.076409408263163
+          },
+          "predict_zero": {
+            "mae": 1.108194836458265,
+            "rmse": 1.505221098572856,
+            "r2": -1.1835986869382564
+          },
+          "predict_mean": {
+            "mae": 0.41145111698269166,
+            "rmse": 1.0206473977780282,
+            "r2": -0.003976842129389535,
+            "value": 1.043958160369403
+          }
+        }
+      },
+      "carbon": {
+        "model": "xgb_regression_ghg_4h",
+        "n_features": 51,
+        "best_iteration": 0,
+        "val": {
+          "mae": 0.0,
+          "rmse": 0.0,
+          "r2": 0,
+          "mae_nonzero": 0,
+          "rmse_nonzero": 0
+        },
+        "test": {
+          "mae": 1.6316897869110107,
+          "rmse": 3.673773222152556,
+          "r2": -0.245741605758667,
+          "mae_nonzero": 4.554436206817627,
+          "rmse_nonzero": 6.137773856523093
+        },
+        "data_caveat": "CAISO only publishes GHG for last ~90 days. Train/val mostly zero. Test (Apr-Jul 2026) has the actual events."
+      }
+    },
+    "model_paths": {
+      "lmp_ratio": "models/v0.1/lmp_ratio.json",
+      "carbon": "models/v0.1/carbon.json"
+    },
+    "status": "champion",
+    "notes": "Backfilled: v0.1 was the initial training run before registry.py existed. Symlink was set manually with `ln -sfn models/v0.1 models/champion`. eval_lmp.json contains 4h-horizon metrics; the 5-min model is what serves.",
+    "promoted_at": "2026-07-05T01:35:29.254292+00:00"
+  },
+  "candidates": [
+    {
+      "version": "v0.1",
+      "registered_at": "2026-07-05T01:35:29.253753+00:00",
+      "git_sha": "47b4079",
+      "data_hash": "444b16fbfb83",
+      "metrics": {
+        "lmp_ratio": {
+          "model": "xgb_regression_lmp_ratio_4h",
+          "n_features": 51,
+          "best_iteration": 16,
+          "val": {
+            "mae": 0.35786494612693787,
+            "rmse": 0.9251171256994217,
+            "r2": 0.17516767978668213
+          },
+          "test": {
+            "mae": 0.7135316729545593,
+            "rmse": 1.3867360718410882,
+            "r2": 0.029620707035064697
+          },
+          "baseline_hour_mean": {
+            "n_val": 77760,
+            "n_train": 155469,
+            "hour_mean": {
+              "mae": 0.3682128675751487,
+              "rmse": 0.978934501590784,
+              "r2": 0.076409408263163
+            },
+            "predict_zero": {
+              "mae": 1.108194836458265,
+              "rmse": 1.505221098572856,
+              "r2": -1.1835986869382564
+            },
+            "predict_mean": {
+              "mae": 0.41145111698269166,
+              "rmse": 1.0206473977780282,
+              "r2": -0.003976842129389535,
+              "value": 1.043958160369403
+            }
+          }
+        },
+        "carbon": {
+          "model": "xgb_regression_ghg_4h",
+          "n_features": 51,
+          "best_iteration": 0,
+          "val": {
+            "mae": 0.0,
+            "rmse": 0.0,
+            "r2": 0,
+            "mae_nonzero": 0,
+            "rmse_nonzero": 0
+          },
+          "test": {
+            "mae": 1.6316897869110107,
+            "rmse": 3.673773222152556,
+            "r2": -0.245741605758667,
+            "mae_nonzero": 4.554436206817627,
+            "rmse_nonzero": 6.137773856523093
+          },
+          "data_caveat": "CAISO only publishes GHG for last ~90 days. Train/val mostly zero. Test (Apr-Jul 2026) has the actual events."
+        }
+      },
+      "model_paths": {
+        "lmp_ratio": "models/v0.1/lmp_ratio.json",
+        "carbon": "models/v0.1/carbon.json"
+      },
+      "status": "champion",
+      "notes": "Backfilled: v0.1 was the initial training run before registry.py existed. Symlink was set manually with `ln -sfn models/v0.1 models/champion`. eval_lmp.json contains 4h-horizon metrics; the 5-min model is what serves.",
+      "promoted_at": "2026-07-05T01:35:29.254292+00:00"
+    }
+  ],
   "history": [],
   "notes": "Empty registry. Models are added by training scripts. See src/models/registry.py"
 }

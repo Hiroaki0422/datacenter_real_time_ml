@@ -8,6 +8,11 @@ Tracks all model versions with metadata:
 - Hyperparameters and feature schema version
 
 Stored as JSON in models/registry.json. Atomic writes via temp file + rename.
+
+The registry path is /app/models/registry.json inside the container (the
+default) and can be overridden via MODELS_DIR for host-side scripts
+(e.g. backfill, dev tooling). The atomic symlink swap is also performed
+relative to MODELS_DIR.
 """
 import json
 import os
@@ -17,8 +22,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-REGISTRY_PATH = Path('/app/models/registry.json')  # inside container
-# On host, this is ./models/registry.json (volume mount)
+# Inside container: /app/models. On host: override via env var.
+_MODELS_DIR = Path(os.environ.get("MODELS_DIR", "/app/models"))
+REGISTRY_PATH = _MODELS_DIR / "registry.json"
 
 
 def load_registry() -> dict:
@@ -113,14 +119,19 @@ def promote_to_champion(version: str) -> dict:
     registry["champion"] = candidate
     save_registry(registry)
 
-    # Atomic symlink swap
+    # Atomic symlink swap. Use a RELATIVE target so the symlink resolves
+    # identically whether you're on the host (where the volume lives at
+    # e.g. /root/project/dc_real_time/models/) or inside the container
+    # (where the same dir is mounted at /app/models/). An absolute target
+    # would resolve to a host-only path and break the container.
     champion_link = REGISTRY_PATH.parent / "champion"
     if champion_link.is_symlink() or champion_link.exists():
         champion_link.unlink()
     target = REGISTRY_PATH.parent / version
     if not target.exists():
         raise FileNotFoundError(f"Model dir {target} does not exist")
-    champion_link.symlink_to(target)
+    # Use just the version dir name (relative), not the absolute path.
+    champion_link.symlink_to(version)
 
     return registry
 
@@ -150,7 +161,7 @@ def _get_git_sha() -> str:
 def _get_data_hash() -> str:
     """Get a quick hash of the training data files (mtime + size)."""
     import hashlib
-    data_dir = Path('/app/data/processed')
+    data_dir = Path(os.environ.get("DATA_DIR", "/app/data/processed"))
     if not data_dir.exists():
         return "no-data"
     h = hashlib.sha256()
