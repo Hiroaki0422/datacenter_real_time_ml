@@ -56,6 +56,35 @@ services:
     networks:
       - dc_net
 
+  # ---- Trainer: cron-driven retraining (D3 + D5) ----
+  # Run with: docker compose run --rm trainer
+  # Or in cron: docker compose exec trainer python -m src.models.retrain_scheduler
+  trainer:
+    image: dc_real_time_api:v0.1
+    container_name: dc_real_time_trainer
+    # Don't auto-restart — trainer is run on demand via docker compose run
+    restart: "no"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - MODEL_VERSION=v0.1
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - AUTO_PROMOTE=0
+      - RETRAIN_MAX_AGE_DAYS=7
+      - DRIFT_PSI_THRESHOLD=0.2
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data:ro
+      - ./artifacts:/app/artifacts
+    # Default: just sleep so container stays alive for `docker compose exec`
+    command: ["sleep", "infinity"]
+    profiles: ["cron"]  # only starts with --profile cron
+    networks:
+      - dc_net
+
 networks:
   dc_net:
     driver: bridge
