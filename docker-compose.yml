@@ -82,6 +82,15 @@ services:
     # Default: just sleep so container stays alive for `docker compose exec`
     command: ["sleep", "infinity"]
     profiles: ["cron"]  # only starts with --profile cron
+    # Override image HEALTHCHECK (which probes :8000 — wrong for sleep infinity)
+    # The python:3.11-slim image doesn't include pgrep/procps, so we test
+    # what we actually care about: that the trainer can reach Redis.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os,redis; r=redis.from_url(os.environ.get('REDIS_URL','redis://redis:6379')); r.ping()\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     networks:
       - dc_net
 
@@ -100,7 +109,10 @@ services:
     networks:
       - dc_net
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
+      # Use 127.0.0.1 explicitly: Alpine's wget resolves localhost to ::1
+      # first, but the listen socket may not bind IPv6 in all kernels —
+      # leading to "Connection refused" on what is otherwise a healthy proxy.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/nginx-health || exit 1"]
       interval: 30s
       timeout: 3s
       retries: 3
