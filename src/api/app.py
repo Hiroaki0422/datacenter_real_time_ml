@@ -689,19 +689,59 @@ def get_sites():
 
 
 @app.get("/zones/history")
-def zones_history():
+def zones_history(since: str = None, limit: int = None):
     """Return per-zone LMP history (sorted-set from fetcher) for the time series.
 
-    Returns up to 24h of 5-min intervals per zone, plus the current forecast.
+    Query params:
+        since: ISO timestamp (e.g. "2026-07-05T13:00:00Z"). If given, only return
+               entries with t >= since. Useful for paginating large histories.
+        limit: int. If given, return only the most recent N entries per zone
+               (after the since filter).
+
+    Returns: {zones: {NP15: [...], ...}, last_updated: ISO, total_in_redis: {zone: count}}
+    Behavior:
+        - No params: returns all entries (current behavior, but will grow over time)
+        - since only: returns entries since that timestamp
+        - limit only: returns the last N entries per zone
+        - both: returns last N entries since the timestamp
+
+    Note: This endpoint can grow unbounded over time. Callers should pass
+    `limit` for the frontend (which doesn't need more than 6h of data for
+    a 24h chart).
     """
     try:
         import redis
+        from datetime import datetime as _dt
         r = redis.from_url(os.environ.get('REDIS_URL', 'redis://redis:6379'),
                           decode_responses=True, socket_connect_timeout=2)
-        out = {'zones': {}, 'last_updated': None}
+        out = {'zones': {}, 'last_updated': None, 'total_in_redis': {}}
+
+        # Parse the 'since' param into a unix timestamp
+        since_unix = None
+        if since:
+            try:
+                # Accept both 'Z' and '+00:00' suffixes
+                dt = _dt.fromisoformat(since.replace('Z', '+00:00'))
+                since_unix = dt.timestamp()
+            except (ValueError, AttributeError) as e:
+                raise HTTPException(status_code=400, detail=f"Invalid 'since' format: {e}. Use ISO 8601.")
+
         for zone in ['NP15', 'SP15', 'ZP26']:
             key = f"features:zone:{zone}:lmp_history"
-            raw = r.zrange(key, 0, -1)
+            # Get total count
+            total = r.zcard(key)
+            out['total_in_redis'][zone] = total
+
+            # Get entries — use ZRANGEBYSCORE if 'since' given, else full range
+            if since_unix is not None:
+                raw = r.zrangebyscore(key, since_unix, '+inf')
+            else:
+                raw = r.zrange(key, 0, -1)
+
+            # Apply limit (take most recent N)
+            if limit and limit > 0 and len(raw) > limit:
+                raw = raw[-limit:]
+
             entries = []
             for entry in raw:
                 try:
@@ -709,11 +749,14 @@ def zones_history():
                 except (json.JSONDecodeError, TypeError):
                     continue
             out['zones'][zone] = entries
+
         # Last fetch metadata
         meta = r.get('meta:last_fetch')
         if meta:
             out['last_updated'] = json.loads(meta).get('cycle_at')
         return out
+    except HTTPException:
+        raise
     except Exception as e:
         logger.warning(f"  Failed to read zones history: {e}")
         return {'zones': {}, 'last_updated': None, 'error': str(e)}
