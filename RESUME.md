@@ -221,13 +221,12 @@ docker compose down
 
 ## What To Do Next (Priority Order)
 
-### 1. **Fix feature parity (D8 full)** — make predictions truly live
-**Why**: All 3 zones return same value because we use system-wide load + fuel mix
-**How**:
-- Cache a rolling 24h feature history per zone in Redis (e.g., `features:zone:NP15:history` as a sorted set)
-- In `live_fetcher.py`, after each fetch, compute the 60m/4h/24h rolling stats and store in Redis
-- In `app.py` forecast endpoint, fetch the history from Redis, compute features properly
-**Result**: Per-zone-specific forecasts, real LMP ratio from rolling stats, not just load
+### 1. ~~**Fix feature parity (D8 full)** — make predictions truly live~~ — DONE 2026-07-05 (c7f3a36)
+   - Fetcher pulls per-zone LMP from CAISO OASIS (gridstatus, REAL_TIME_5_MIN), writes to features:zone:{zone}:lmp_history (Redis sorted set, 25h TTL)
+   - App.py reads history, computes all 22 LMP features the model expects
+   - Predictions are similar across zones during calm grid (correct — model is in flat response curve)
+   - Will diverge during grid stress (heat waves, generator outages) — wait for one to verify
+   - Side fix: nginx 502s (image's default.conf conflicted with our config; we mount nginx/conf.d/ to suppress)
 
 ### 2. **Drift detector (D10)**
 **Why**: `retrain_scheduler.py` reads from a log that doesn't exist
@@ -303,7 +302,7 @@ docker compose down
 - [x] D6 live fetcher
 - [x] D7 nginx blue/green config
 - [x] D8 API with real model calls
-- [ ] D8 full: per-zone feature parity (zone-specific values)
+- [x] D8 full: per-zone LMP history + 22 LMP features at inference (c7f3a36)
 - [ ] D9: actual weight-based canary
 - [ ] D10: drift detector producing artifacts/drift_log.json
 - [ ] D11: frontend HTML/JS
