@@ -265,6 +265,8 @@ docker compose down
 6. **GHG data only published for last ~90 days**: train carbon model on May-Jul 2026 only
 7. **Volume mount permissions**: artifacts dir must be owned by uid 1000 (app user in container)
 8. **For each new code file, rebuild the image**: `docker build -t dc_real_time_api:v0.1 .`
+9. **Image HEALTHCHECK probes :8000** (baked into Dockerfile). For services that DON'T run uvicorn (e.g. trainer with `sleep infinity`), override the healthcheck in compose — see trainer block for the Redis-ping pattern.
+10. **Alpine `wget` resolves `localhost` to `::1` first**: nginx healthchecks using `http://localhost/...` may get "Connection refused" even when the proxy is fine. Use `http://127.0.0.1/...` instead.
 
 ---
 
