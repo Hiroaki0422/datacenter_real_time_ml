@@ -96,6 +96,44 @@ def check_scheduled_retrain() -> dict:
         return {"should_retrain": True, "reason": f"error parsing timestamp: {e}"}
 
 
+def check_carbon_queue() -> dict:
+    """Check if the fetcher has queued a carbon-only retrain (Phase 3).
+
+    The fetcher's `should_retrain_carbon()` function writes a flag to Redis
+    when the carbon data window has expanded enough to justify a retrain.
+    The scheduler picks up that flag here.
+
+    Returns: {should_retrain, reason, queued_at, window}
+    """
+    try:
+        import redis
+        r = redis.from_url(os.environ.get('REDIS_URL', 'redis://redis:6379'),
+                          decode_responses=True, socket_connect_timeout=2)
+        flag = r.get('meta:carbon_retrain_queued')
+        if not flag:
+            return {"should_retrain": False, "reason": "no carbon retrain queued"}
+        try:
+            data = json.loads(flag)
+            return {
+                "should_retrain": True,
+                "reason": data.get('reason', 'window expanded'),
+                "queued_at": data.get('queued_at'),
+                "window": data.get('window', {}),
+            }
+        except (json.JSONDecodeError, TypeError):
+            return {"should_retrain": False, "reason": "invalid queue flag format"}
+    except Exception as e:
+        return {"should_retrain": False, "reason": f"error checking queue: {e}"}
+
+
+def clear_carbon_queue(redis_client):
+    """Clear the carbon retrain queue flag (after training)."""
+    try:
+        redis_client.delete('meta:carbon_retrain_queued')
+    except Exception as e:
+        logger.warning(f"  Failed to clear carbon queue: {e}")
+
+
 def train_new_model(version: str = None) -> dict:
     """Train a new model version (LMP + carbon at 4 horizons: 30m, 1h, 2h, 4h).
 
@@ -208,8 +246,13 @@ def main():
     else:
         drift = check_drift_signal()
         schedule = check_scheduled_retrain()
-        should_retrain = drift['should_retrain'] or schedule['should_retrain']
-        reason = f"drift: {drift.get('reason', '?')}; schedule: {schedule.get('reason', '?')}"
+        carbon = check_carbon_queue()
+        should_retrain = drift['should_retrain'] or schedule['should_retrain'] or carbon['should_retrain']
+        reason = (
+            f"drift: {drift.get('reason', '?')}; "
+            f"schedule: {schedule.get('reason', '?')}; "
+            f"carbon: {carbon.get('reason', '?')}"
+        )
 
     logger.info(f"Should retrain: {should_retrain} ({reason})")
 
@@ -230,6 +273,16 @@ def main():
         notes=f"Auto-trained: {reason}",
     )
     logger.info(f"Registered candidate: {new_version}")
+
+    # 3b. Clear carbon queue flag (training done)
+    try:
+        import redis
+        r = redis.from_url(os.environ.get('REDIS_URL', 'redis://redis:6379'),
+                          decode_responses=True, socket_connect_timeout=2)
+        clear_carbon_queue(r)
+        logger.info(f"  Cleared carbon retrain queue flag")
+    except Exception as e:
+        logger.warning(f"  Could not clear carbon queue: {e}")
 
     # 4. Decide whether to promote
     champion = get_champion_metrics() or {}

@@ -34,21 +34,45 @@ PROJECT_ROOT = Path(os.environ.get('PROJECT_ROOT', '/root/project/dc_real_time')
 PROCESSED = PROJECT_ROOT / 'data' / 'processed'
 ARTIFACTS = PROJECT_ROOT / 'artifacts'
 
-# Carbon data is only available May-Jul 2026
+# Carbon data is only available May-Jul 2026 (initial hardcoded value,
+# auto-detected in _detect_carbon_window() below)
 GHG_START = pd.Timestamp('2026-05-01', tz='US/Pacific')
 
 # The 4 horizons we save as separate models (user spec: 30m, 1h, 2h, 4h averages)
 HORIZONS_MIN = [30, 60, 120, 240]
 HORIZON_LABELS = {30: '30m', 60: '1h', 120: '2h', 240: '4h'}
 
+# Carbon data window: auto-detect from the LMP parquet if possible.
+# This lets the training script pick up new carbon data as it accrues,
+# rather than being hardcoded to 2026-05-01 onwards.
+def _detect_carbon_window():
+    """Return (start, end) of the carbon data window from the LMP parquet.
+
+    Returns the dates between which non-zero GHG data exists, with a
+    1-day buffer on each side.
+    """
+    try:
+        lmp = pd.read_parquet(PROCESSED / 'caiso_lmp_1y.parquet')
+        ghg = lmp[lmp['GHG'] > 0]
+        if len(ghg) == 0:
+            return GHG_START, pd.Timestamp('2026-12-31', tz='US/Pacific')
+        oldest = ghg['Time'].min() - pd.Timedelta(days=1)
+        newest = ghg['Time'].max() + pd.Timedelta(days=1)
+        return oldest, newest
+    except Exception:
+        return GHG_START, pd.Timestamp('2026-12-31', tz='US/Pacific')
+
+# Will be overwritten in main() if auto-detection succeeds
+GHG_START, GHG_END = _detect_carbon_window()
+
 
 def load_data():
     lmp = pd.read_parquet(PROCESSED / 'caiso_lmp_1y.parquet')
     fm = pd.read_parquet(PROCESSED / 'caiso_fuel_mix_1y.parquet')
 
-    # Restrict to May-Jul 2026 (where GHG exists)
-    lmp = lmp[lmp['Time'] >= GHG_START].copy()
-    fm = fm[fm['Time'] >= GHG_START].copy()
+    # Restrict to the carbon data window (auto-detected)
+    lmp = lmp[(lmp['Time'] >= GHG_START) & (lmp['Time'] <= GHG_END)].copy()
+    fm = fm[(fm['Time'] >= GHG_START) & (fm['Time'] <= GHG_END)].copy()
     return lmp, fm
 
 
@@ -245,13 +269,13 @@ def main(version: str = 'v0.1') -> dict:
 
     print("=" * 60)
     print(f"CARBON MODEL: Multi-Horizon Training (version={version})")
-    print(f"GHG data window: {GHG_START.date()} onwards")
+    print(f"GHG data window: {GHG_START.date()} → {GHG_END.date()}")
     print(f"Horizons (min): {HORIZONS_MIN}")
     print(f"Models dir: {models_dir}")
     print("=" * 60)
 
     lmp, fm = load_data()
-    print(f"LMP rows: {len(lmp):,}, Fuel mix rows: {len(fm):,}")
+    print(f"LMP rows: {len(lmp):,}, Fuel mix rows: {len(fm):,} (auto-detected carbon window)")
 
     results = []
     horizon_metrics = {}

@@ -466,6 +466,132 @@ def predict_lmp_per_horizon(zone: str, per_zone_lmp: dict, system_lmp: 'float | 
     return {'30m': lmp_now, '1h': lmp_now, '2h': lmp_now, '4h': lmp_now}
 
 
+# === Carbon data window tracking (Phase 3) ===
+# CAISO only publishes the GHG (marginal emissions) field for the most
+# recent ~90 days. As time passes, the carbon model's training window
+# naturally expands. We track the last-known date of carbon data and
+# trigger a retrain when new data is available.
+
+# Minimum window size (days) before we'll retrain. Avoids retraining on
+# a tiny window that would just overfit to noise.
+CARBON_MIN_WINDOW_DAYS = int(os.environ.get('CARBON_MIN_WINDOW_DAYS', '30'))
+
+# Minimum new data (days) since last training before we'll retrain.
+# Avoids churn — if 1 new day arrived, don't immediately retrain.
+CARBON_MIN_NEW_DAYS = int(os.environ.get('CARBON_MIN_NEW_DAYS', '7'))
+
+CARBON_RETRAIN_KEY = 'meta:last_carbon_data_date'
+CARBON_LAST_TRAIN_KEY = 'meta:carbon_last_train_at'
+
+
+def probe_carbon_data_window() -> dict:
+    """Check the current carbon data window from the fetcher's perspective.
+
+    Returns:
+        {
+          'latest_ghg_date': ISO date or None,
+          'days_available': int (days of non-zero GHG data),
+          'oldest_ghg_date': ISO date or None,
+        }
+    Empty dict if no carbon data accessible.
+    """
+    try:
+        # Try to read directly from the parquet (fastest path).
+        # Default to the in-container PROJECT_ROOT; the host path may
+        # not be readable by the app user inside Docker.
+        from pathlib import Path as _P
+        project_root = _P(os.environ.get('PROJECT_ROOT', '/app'))
+        lmp_path = project_root / 'data' / 'processed' / 'caiso_lmp_1y.parquet'
+        if lmp_path.exists():
+            import pandas as _pd
+            lmp = _pd.read_parquet(lmp_path)
+            ghg = lmp[lmp['GHG'] > 0]
+            if len(ghg) == 0:
+                return {}
+            return {
+                'oldest_ghg_date': ghg['Time'].min().isoformat(),
+                'latest_ghg_date': ghg['Time'].max().isoformat(),
+                'days_available': int((ghg['Time'].max() - ghg['Time'].min()).total_seconds() / 86400),
+            }
+        # Fall back to gridstatus
+        import gridstatus
+        c = gridstatus.CAISO()
+        # This would be expensive — skip if parquet missing
+        return {}
+    except Exception as e:
+        logger.warning(f"  Carbon window probe failed: {e}")
+        return {}
+
+
+def should_retrain_carbon(redis_client) -> tuple:
+    """Decide if the carbon model should be retrained.
+
+    Compares the current carbon data window to the last training time:
+    if more than CARBON_MIN_NEW_DAYS of new data is available AND the
+    window is at least CARBON_MIN_WINDOW_DAYS wide, trigger retrain.
+
+    Returns: (should_retrain: bool, reason: str)
+    """
+    import json as _json
+    window = probe_carbon_data_window()
+    if not window or not window.get('latest_ghg_date'):
+        return False, "no carbon data available"
+
+    days_available = window.get('days_available', 0)
+    if days_available < CARBON_MIN_WINDOW_DAYS:
+        return False, f"window too small ({days_available}d < {CARBON_MIN_WINDOW_DAYS}d)"
+
+    # Check when we last retrained
+    last_train = redis_client.get(CARBON_LAST_TRAIN_KEY)
+    if last_train:
+        try:
+            last_train_dt = _json.loads(last_train)
+            # Find the latest GHG date at the time of last training
+            # (we just store the latest GHG date; compare to that)
+            last_known_ghg = redis_client.get(CARBON_RETRAIN_KEY)
+            if last_known_ghg:
+                last_known_ghg_dt = _json.loads(last_known_ghg)
+                from datetime import datetime as _dt
+                if isinstance(last_known_ghg_dt, str):
+                    last_known_ghg_dt = _dt.fromisoformat(last_known_ghg_dt.replace('Z', '+00:00'))
+                latest_ghg_dt = _dt.fromisoformat(window['latest_ghg_date'].replace('Z', '+00:00'))
+                new_days = (latest_ghg_dt - last_known_ghg_dt).total_seconds() / 86400
+                if new_days < CARBON_MIN_NEW_DAYS:
+                    return False, f"only {new_days:.1f} new days since last retrain (need {CARBON_MIN_NEW_DAYS})"
+                return True, f"{new_days:.1f} new days of carbon data since last retrain"
+        except (ValueError, _json.JSONDecodeError):
+            pass
+
+    return True, "no prior retrain recorded — training now"
+
+
+def _queue_carbon_retrain(redis_client):
+    """Queue a carbon model retrain.
+
+    Sets a Redis flag 'meta:carbon_retrain_queued' that the retrain
+    scheduler can pick up. The actual training is run by
+    `python -m src.models.retrain_scheduler --target carbon` (a future
+    enhancement — for now, the fetcher just logs the trigger).
+    """
+    import json as _json
+    window = probe_carbon_data_window()
+    redis_client.setex(
+        'meta:carbon_retrain_queued',
+        7 * 24 * 3600,  # 7 days TTL
+        _json.dumps({
+            'queued_at': datetime.now(timezone.utc).isoformat(),
+            'reason': 'window expanded',
+            'window': window,
+        })
+    )
+    # Also update the "last known" carbon data date
+    if window.get('latest_ghg_date'):
+        redis_client.set(
+            CARBON_RETRAIN_KEY,
+            _json.dumps(window['latest_ghg_date'])
+        )
+
+
 # === Main fetch cycle ===
 
 def fetch_cycle(redis_client, dc_sites: pd.DataFrame) -> dict:
@@ -578,6 +704,14 @@ def fetch_cycle(redis_client, dc_sites: pd.DataFrame) -> dict:
             'n_dcs_cached': cache_summary['dcs'],
         })
     )
+
+    # 6b. Check if carbon model should be retrained (Phase 3)
+    should_train, train_reason = should_retrain_carbon(redis_client)
+    if should_train:
+        logger.info(f"  Carbon retrain triggered: {train_reason}")
+        _queue_carbon_retrain(redis_client)
+    else:
+        logger.debug(f"  No carbon retrain needed: {train_reason}")
 
     elapsed = (datetime.now(timezone.utc) - cycle_start).total_seconds()
     logger.info(f"=== Cycle done in {elapsed:.1f}s ===")
