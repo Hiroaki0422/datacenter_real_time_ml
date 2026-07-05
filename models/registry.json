@@ -1,0 +1,7 @@
+{
+  "schema_version": "1.0",
+  "champion": null,
+  "candidates": [],
+  "history": [],
+  "notes": "Empty registry. Models are added by training scripts. See src/models/registry.py"
+}

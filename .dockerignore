@@ -1,0 +1,49 @@
+# Build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# Data and models — mounted as volumes, never baked into image
+data/raw/
+data/processed/*.parquet
+data/processed/*.csv
+data/external/.env
+models/*.pkl
+models/*.joblib
+models/*.json
+models/v*/
+
+# Notebooks and IDE
+.ipynb_checkpoints/
+notebooks/.env
+.idea/
+.vscode/
+*.swp
+
+# Git and OS
+.git/
+.gitignore
+.DS_Store
+Thumbs.db
+
+# Logs and caches
+*.log
+artifacts/logs/
+.cache.sqlite
+.cache/
+.cache_weather/
+*.db
+*.sqlite
+*.sqlite3
+
+# Documentation that doesn't belong in the image
+docs/
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore

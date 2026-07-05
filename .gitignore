@@ -15,10 +15,15 @@ data/external/.env
 .env
 
 # === Models — large serialized artifacts ===
+# Note: models/registry.json is committed (small, just metadata)
+#       models/*.pkl and models/v*/ are gitignored (regenerated)
 models/*.pkl
 models/*.joblib
 models/*.onnx
 models/v*/
+# Keep models/ dir tracked via .gitkeep and registry.json
+!models/.gitkeep
+!models/registry.json
 
 # === Python ===
 __pycache__/
@@ -36,12 +41,15 @@ notebooks/.env
 
 # === OS ===
 .DS_Store
-Thumbs.db
-
-# === IDE ===
+# Notebooks and IDE
+.ipynb_checkpoints/
+notebooks/.env
 .idea/
 .vscode/
 *.swp
+
+# Directory markers (force-track empty dirs)
+!.gitkeep
 *.swo
 
 # === Logs / cache ===
