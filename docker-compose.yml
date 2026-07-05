@@ -85,6 +85,26 @@ services:
     networks:
       - dc_net
 
+  # ---- Nginx: blue/green + canary reverse proxy (D4 + D7) ----
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: dc_real_time_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - dc_net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
 networks:
   dc_net:
     driver: bridge
