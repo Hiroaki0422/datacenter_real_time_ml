@@ -53,6 +53,8 @@ services:
       - ./models:/app/models
       - ./data:/app/data:ro
       - ./artifacts:/app/artifacts
+      # Frontend (D11)
+      - ./web:/app/web:ro
     networks:
       - dc_net
 

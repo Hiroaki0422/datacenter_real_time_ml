@@ -13,6 +13,7 @@ Models are loaded from /app/models/champion/{lmp_ratio,carbon}.json
 (atomic symlink swap for zero-downtime model deployment).
 """
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from datetime import datetime
 from pathlib import Path
 import json
@@ -535,3 +536,93 @@ def admin_reload():
         "lmp_loaded": MODEL_METADATA['lmp_ratio_loaded'],
         "carbon_loaded": MODEL_METADATA['carbon_loaded'],
     }
+
+
+# === Frontend support (D11) ===
+
+# Load the 227 CA DC sites once at startup for the /sites endpoint.
+SITES_CSV_PATH = Path('/app/data/external/ca_dc_sites.csv')
+DC_SITES_CACHE: list = []
+
+
+def load_dc_sites() -> list:
+    """Load the 227 CA DC sites from CSV into a list of dicts."""
+    if DC_SITES_CACHE:
+        return DC_SITES_CACHE
+    if not SITES_CSV_PATH.exists():
+        logger.warning(f"  DC sites CSV not found at {SITES_CSV_PATH}")
+        return []
+    import csv
+    sites = []
+    with open(SITES_CSV_PATH) as f:
+        for row in csv.DictReader(f):
+            # Coerce numeric fields; skip rows that can't be parsed
+            try:
+                sites.append({
+                    'dc_id': row['dc_id'],
+                    'name': row['name'],
+                    'provider': row.get('provider', ''),
+                    'state': row.get('state', ''),
+                    'latitude': float(row['latitude']),
+                    'longitude': float(row['longitude']),
+                    'mw_capacity': float(row.get('MW_total_power', 0) or 0),
+                    'wue': float(row.get('wue_default', 1.18) or 1.18),
+                    'bws_score': float(row.get('bws_score', 0) or 0),
+                    'caiso_zone': row.get('caiso_zone', ''),
+                })
+            except (ValueError, KeyError) as e:
+                logger.warning(f"  Skipping malformed DC row: {e}")
+                continue
+    logger.info(f"  Loaded {len(sites)} DC sites from {SITES_CSV_PATH}")
+    DC_SITES_CACHE.extend(sites)
+    return DC_SITES_CACHE
+
+
+load_dc_sites()
+
+
+@app.get("/sites")
+def get_sites():
+    """Return all 227 CA DC sites as JSON (for the frontend map)."""
+    return {'sites': load_dc_sites(), 'count': len(DC_SITES_CACHE)}
+
+
+@app.get("/zones/history")
+def zones_history():
+    """Return per-zone LMP history (sorted-set from fetcher) for the time series.
+
+    Returns up to 24h of 5-min intervals per zone, plus the current forecast.
+    """
+    try:
+        import redis
+        r = redis.from_url(os.environ.get('REDIS_URL', 'redis://redis:6379'),
+                          decode_responses=True, socket_connect_timeout=2)
+        out = {'zones': {}, 'last_updated': None}
+        for zone in ['NP15', 'SP15', 'ZP26']:
+            key = f"features:zone:{zone}:lmp_history"
+            raw = r.zrange(key, 0, -1)
+            entries = []
+            for entry in raw:
+                try:
+                    entries.append(json.loads(entry))
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            out['zones'][zone] = entries
+        # Last fetch metadata
+        meta = r.get('meta:last_fetch')
+        if meta:
+            out['last_updated'] = json.loads(meta).get('cycle_at')
+        return out
+    except Exception as e:
+        logger.warning(f"  Failed to read zones history: {e}")
+        return {'zones': {}, 'last_updated': None, 'error': str(e)}
+
+
+# === Static file serving (D11) ===
+# Mount the web/ directory at / so the frontend is served at the root.
+WEB_DIR = Path('/app/web')
+if WEB_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+    logger.info(f"  Serving frontend from {WEB_DIR}")
+else:
+    logger.info(f"  No web/ directory at {WEB_DIR}; frontend not served")

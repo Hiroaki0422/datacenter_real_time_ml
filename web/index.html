@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CA Grid — Carbon-Aware DC Scheduling</title>
+  <!-- Plotly.js (CDN, single dep) -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+  <style>
+    :root {
+      --bg: #0e1117;
+      --panel: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --accent: #d73a49;       /* red for "defer/stress" */
+      --accent-ok: #2ea043;
+      --accent-warn: #d29922;
+      --accent-pause: #d73a49;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 {
+      font-size: 18px;
+      margin: 0;
+      font-weight: 600;
+    }
+    header .last-update {
+      color: var(--muted);
+      font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }
+    .advisory-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .advisory-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 6px;
+      padding: 16px;
+    }
+    .advisory-card[data-advisory="ok"] { border-left-color: var(--accent-ok); }
+    .advisory-card[data-advisory="watch"] { border-left-color: var(--accent-warn); }
+    .advisory-card[data-advisory="defer"] { border-left-color: var(--accent-pause); }
+    .advisory-card[data-advisory="pause"] { border-left-color: var(--accent-pause); }
+    .advisory-card h2 {
+      font-size: 14px;
+      margin: 0 0 4px 0;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .advisory-card .lmp-now {
+      font-size: 28px;
+      font-weight: 700;
+      margin: 4px 0;
+    }
+    .advisory-card .lmp-fcst {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .advisory-card .advisory-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 8px;
+    }
+    .advisory-card[data-advisory="ok"] .advisory-tag {
+      background: rgba(46, 160, 67, 0.2);
+      color: var(--accent-ok);
+    }
+    .advisory-card[data-advisory="watch"] .advisory-tag {
+      background: rgba(210, 153, 34, 0.2);
+      color: var(--accent-warn);
+    }
+    .advisory-card[data-advisory="defer"] .advisory-tag,
+    .advisory-card[data-advisory="pause"] .advisory-tag {
+      background: rgba(215, 58, 73, 0.2);
+      color: var(--accent-pause);
+    }
+    .chart-container {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .chart-container h3 {
+      font-size: 14px;
+      margin: 0 0 8px 0;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .summary-bar {
+      display: flex;
+      gap: 24px;
+      padding: 12px 24px;
+      font-size: 13px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .summary-bar strong { color: var(--text); }
+    footer {
+      padding: 12px 24px;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    a { color: #58a6ff; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CA Grid — Carbon-Aware Data Center Scheduling</h1>
+    <div class="last-update" id="lastUpdate">Loading…</div>
+  </header>
+
+  <div class="summary-bar">
+    <span>Sites: <strong id="siteCount">—</strong></span>
+    <span>Total MW: <strong id="totalMW">—</strong></span>
+    <span>Grid status: <strong id="gridStatus">—</strong></span>
+    <span>Source: <a href="/healthz" target="_blank">/healthz</a> ·
+                       <a href="/sites" target="_blank">/sites</a> ·
+                       <a href="/zones/history" target="_blank">/zones/history</a></span>
+  </div>
+
+  <div class="advisory-row" id="advisoryRow">
+    <!-- 3 cards rendered by JS -->
+  </div>
+
+  <div class="chart-container">
+    <h3>Map: 227 California data centers (red dots = sites, sized by MW capacity)</h3>
+    <div id="map" style="width: 100%; height: 480px;"></div>
+  </div>
+
+  <div class="chart-container">
+    <h3>LMP history (last 24h, real-time from CAISO OASIS) + 5-min forward forecast</h3>
+    <div id="lmpChart" style="width: 100%; height: 320px;"></div>
+  </div>
+
+  <footer>
+    Predictions every 5 min from live CAISO OASIS data.
+    5-min forward horizon is the model's best (chi² winner per <code>docs/DECISIONS.md</code>).
+    <a href="https://github.com/Hiroaki0422/datacenter_real_time_ml" target="_blank">Source on GitHub</a>.
+  </footer>
+
+  <script>
+    // ===== Data fetchers =====
+    async function fetchJSON(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`${url} → ${r.status}`);
+      return r.json();
+    }
+
+    // ===== Advisory cards =====
+    function renderAdvisories(forecasts) {
+      const row = document.getElementById('advisoryRow');
+      row.innerHTML = '';
+      const colors = { NP15: '#58a6ff', SP15: '#2ea043', ZP26: '#d29922' };
+      for (const z of ['NP15', 'SP15', 'ZP26']) {
+        const f = forecasts[z] || {};
+        const adv = f.advisory || 'unknown';
+        const card = document.createElement('div');
+        card.className = 'advisory-card';
+        card.dataset.advisory = adv;
+        card.innerHTML = `
+          <h2>${z}</h2>
+          <div class="lmp-now" style="color: ${colors[z]}">$${(f.lmp_dollar_estimate || 0).toFixed(2)}/MWh</div>
+          <div class="lmp-fcst">5-min forecast: lmp_ratio ${(f.lmp_ratio_pred || 0).toFixed(3)} ·
+                                 load ${(f.load_mw || 0).toFixed(0)} MW</div>
+          <div class="advisory-tag">${adv}</div>
+        `;
+        row.appendChild(card);
+      }
+    }
+
+    // ===== Map =====
+    async function renderMap() {
+      const { sites } = await fetchJSON('/sites');
+      document.getElementById('siteCount').textContent = sites.length;
+      const totalMW = sites.reduce((s, x) => s + (x.mw_capacity || 0), 0);
+      document.getElementById('totalMW').textContent = totalMW.toFixed(0);
+
+      // Simple Plotly scatter map: red dots, sized by MW
+      const lats = sites.map(s => s.latitude);
+      const lons = sites.map(s => s.longitude);
+      const mws  = sites.map(s => s.mw_capacity);
+      const hover = sites.map(s =>
+        `<b>${s.name}</b><br>${s.provider}<br>` +
+        `${s.mw_capacity} MW · zone ${s.caiso_zone}<br>` +
+        `WUE ${s.wue} · BWS ${s.bws_score}`
+      );
+
+      const data = [{
+        type: 'scattermapbox',
+        lat: lats, lon: lons,
+        mode: 'markers',
+        marker: {
+          color: '#d73a49',                 /* red per spec */
+          size: mws.map(m => Math.max(4, Math.min(20, Math.sqrt(m) * 1.5))),
+          opacity: 0.7,
+          line: { width: 0 }
+        },
+        text: hover,
+        hoverinfo: 'text',
+        name: 'CA data centers'
+      }];
+
+      const layout = {
+        mapbox: {
+          style: 'carto-darkmatter',
+          center: { lat: 36.5, lon: -119.5 },  /* California centroid */
+          zoom: 5
+        },
+        paper_bgcolor: '#161b22',
+        plot_bgcolor: '#161b22',
+        font: { color: '#c9d1d9' },
+        margin: { t: 0, b: 0, l: 0, r: 0 },
+        showlegend: false
+      };
+      const config = { responsive: true, displayModeBar: false };
+      Plotly.newPlot('map', data, layout, config);
+    }
+
+    // ===== LMP history chart =====
+    async function renderLMPChart() {
+      const { zones, last_updated } = await fetchJSON('/zones/history');
+      const traces = [];
+      const colors = { NP15: '#58a6ff', SP15: '#2ea043', ZP26: '#d29922' };
+      for (const z of ['NP15', 'SP15', 'ZP26']) {
+        const entries = zones[z] || [];
+        if (!entries.length) continue;
+        const x = entries.map(e => e.t);
+        const y = entries.map(e => e.lmp);
+        traces.push({
+          x, y,
+          mode: 'lines+markers',
+          type: 'scatter',
+          name: z,
+          line: { color: colors[z], width: 2 },
+          marker: { size: 3 },
+          hovertemplate: `<b>${z}</b><br>%{x}<br>$%{y:.2f}/MWh<extra></extra>`
+        });
+      }
+      const layout = {
+        paper_bgcolor: '#161b22',
+        plot_bgcolor: '#161b22',
+        font: { color: '#c9d1d9' },
+        xaxis: {
+          gridcolor: '#30363d',
+          type: 'date',
+          title: ''
+        },
+        yaxis: {
+          gridcolor: '#30363d',
+          title: 'LMP ($/MWh)',
+          rangemode: 'tozero'
+        },
+        margin: { t: 10, b: 40, l: 60, r: 20 },
+        legend: { orientation: 'h', y: -0.15 },
+        hovermode: 'x unified'
+      };
+      const config = { responsive: true, displayModeBar: false };
+      Plotly.newPlot('lmpChart', traces, layout, config);
+
+      if (last_updated) {
+        document.getElementById('lastUpdate').textContent =
+          `Last fetch: ${new Date(last_updated).toLocaleString()}`;
+      }
+    }
+
+    // ===== Orchestrator =====
+    async function refresh() {
+      try {
+        // Fetch all 3 zone forecasts in parallel
+        const forecasts = {};
+        await Promise.all(['NP15', 'SP15', 'ZP26'].map(async (z) => {
+          try { forecasts[z] = await fetchJSON(`/forecast/${z}`); }
+          catch (e) { console.warn(`forecast ${z} failed:`, e); }
+        }));
+        renderAdvisories(forecasts);
+
+        // Aggregate grid status
+        const advs = Object.values(forecasts).map(f => f.advisory);
+        if (advs.includes('pause') || advs.includes('defer')) {
+          document.getElementById('gridStatus').textContent = 'STRESSED';
+          document.getElementById('gridStatus').style.color = 'var(--accent-pause)';
+        } else if (advs.includes('watch')) {
+          document.getElementById('gridStatus').textContent = 'WATCH';
+          document.getElementById('gridStatus').style.color = 'var(--accent-warn)';
+        } else {
+          document.getElementById('gridStatus').textContent = 'CLEAN';
+          document.getElementById('gridStatus').style.color = 'var(--accent-ok)';
+        }
+
+        // Render charts
+        await renderMap();
+        await renderLMPChart();
+      } catch (e) {
+        console.error('refresh failed:', e);
+        document.getElementById('lastUpdate').textContent = 'Error fetching data — check /healthz';
+      }
+    }
+
+    refresh();
+    // Refresh every 60s (the fetcher runs every 5 min; 60s is just a sane UI cadence)
+    setInterval(refresh, 60_000);
+  </script>
+</body>
+</html>
