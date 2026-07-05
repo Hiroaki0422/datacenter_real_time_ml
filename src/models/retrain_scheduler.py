@@ -96,95 +96,100 @@ def check_scheduled_retrain() -> dict:
         return {"should_retrain": True, "reason": f"error parsing timestamp: {e}"}
 
 
-def train_new_model(target: str = "lmp") -> dict:
-    """Train a new model version. Returns metrics dict."""
-    # Determine next version
-    registry = load_registry()
-    existing_versions = set()
-    if registry.get("champion"):
-        existing_versions.add(registry["champion"]["version"])
-    for c in registry.get("candidates", []):
-        existing_versions.add(c["version"])
-    for h in registry.get("history", []):
-        existing_versions.add(h["version"])
-    n = len(existing_versions)
-    new_version = f"v0.{n + 1}"
-    logger.info(f"Training new model: {new_version}")
+def train_new_model(version: str = None) -> dict:
+    """Train a new model version (LMP + carbon at 4 horizons: 30m, 1h, 2h, 4h).
 
-    # Create version dir
-    new_dir = Path(f"/app/models/{new_version}")
+    Calls the multi-horizon training scripts, captures all 8 model files
+    (4 LMP + 4 carbon), and returns a result dict structured for the
+    registry: {version, horizons: {lmp_ratio: {30m:..., 1h:..., 2h:..., 4h:...},
+                                    carbon:    {30m:..., 1h:..., 2h:..., 4h:...}}}
+
+    Returns: dict ready for register_candidate(...)
+    """
+    # Determine next version if not provided
+    if not version:
+        registry = load_registry()
+        existing_versions = set()
+        if registry.get("champion"):
+            existing_versions.add(registry["champion"]["version"])
+        for c in registry.get("candidates", []):
+            existing_versions.add(c["version"])
+        for h in registry.get("history", []):
+            existing_versions.add(h["version"])
+        n = len(existing_versions)
+        version = f"v0.{n + 1}"
+
+    logger.info(f"Training new model version: {version}")
+
+    # Ensure version dir exists
+    new_dir = Path(os.environ.get('MODELS_DIR', '/app/models')) / version
     new_dir.mkdir(parents=True, exist_ok=True)
 
-    # Run training script (in-process for simplicity; could be subprocess)
-    if target == "lmp":
-        from src.models.train_lmp_multi_horizon import main as train_main
-        # Train both LMP and carbon in one go for v1
-        # Save best LMP and carbon models
-        import xgboost as xgb
-        import pandas as pd
-        from pathlib import Path as P
-        from src.models.train_lmp_multi_horizon import (
-            load_data, build_features_for_horizon, get_feature_cols,
-            encode_zone, HORIZONS_MIN,
-        )
+    # 1. Train LMP at all 4 horizons
+    logger.info("=== Training LMP models (30m, 1h, 2h, 4h) ===")
+    from src.models.train_lmp_multi_horizon import main as train_lmp
+    lmp_result = train_lmp(version=version)
+    logger.info(f"  LMP best horizon: {lmp_result['best_horizon']}")
 
-        # Train LMP at best horizon (5 min)
-        lmp_features, lmp_data = load_data()
-        # We trained multi-horizon already; reuse the best 5-min logic
-        # For simplicity, train a fresh 5-min model
-        lmp_target = 'lmp_ratio_target_5m'
-        lmp_features_h = build_features_for_horizon(lmp_data, lmp_features, 5)
-        # Time split 60/20/20
-        n = len(lmp_features_h)
-        lmp_features_h = lmp_features_h.iloc[:int(n*0.8)].copy()
-        lmp_features_h['split'] = 'train'
-        lmp_features_h.iloc[int(n*0.6):int(n*0.8), lmp_features_h.columns.get_loc('split')] = 'val'
-        # This is a simplified re-train; in production we'd reuse the multi-horizon script
-        logger.info(f"  LMP training (5-min): using existing champion as reference")
+    # 2. Train carbon at all 4 horizons
+    logger.info("=== Training carbon models (30m, 1h, 2h, 4h) ===")
+    from src.models.train_carbon_multi_horizon import main as train_carbon
+    carbon_result = train_carbon(version=version)
+    logger.info(f"  Carbon best horizon: {carbon_result['best_horizon']}")
 
-        # For now, just copy the existing best model (Phase 4 simplification)
-        champion_link = P('/app/models/champion')
-        if champion_link.is_symlink():
-            champion_dir = champion_link.resolve()
-            for f in champion_dir.glob('*.json'):
-                shutil_target = new_dir / f.name
-                shutil.copy2(f, shutil_target)
-            logger.info(f"  Copied champion models to {new_dir}")
-        else:
-            logger.warning("  No champion yet; would need full training")
-
-        # Get metrics from existing best
-        existing = list(new_dir.glob('lmp_ratio_*.json'))
-        metrics = {
-            'lmp_ratio_5m': {'val_r2': 0.706, 'test_r2': 0.590, 'note': 'inherited from champion'},
-            'carbon_5m': {'val_r2': 0.812, 'test_r2': 0.765, 'note': 'inherited from champion'},
-        }
-    else:
-        metrics = {}
+    # 3. Build the registry metrics structure
+    # Nested: {lmp_ratio: {30m: {metrics...}, 1h: {...}}, carbon: {30m: {...}, ...}}
+    metrics = {
+        'lmp_ratio': {h: lmp_result['horizons'][h] for h in ['30m', '1h', '2h', '4h']},
+        'carbon':    {h: carbon_result['horizons'][h] for h in ['30m', '1h', '2h', '4h']},
+    }
+    model_paths = {
+        'lmp_ratio': {h: lmp_result['horizons'][h]['model_path'] for h in ['30m', '1h', '2h', '4h']},
+        'carbon':    {h: carbon_result['horizons'][h]['model_path'] for h in ['30m', '1h', '2h', '4h']},
+    }
 
     return {
-        "version": new_version,
+        "version": version,
         "metrics": metrics,
-        "model_paths": {
-            "lmp_ratio": f"models/{new_version}/lmp_ratio_best.json",
-            "carbon": f"models/{new_version}/carbon_best.json",
-        },
+        "model_paths": model_paths,
+        "best_lmp_horizon": lmp_result['best_horizon'],
+        "best_carbon_horizon": carbon_result['best_horizon'],
+        "n_train_total": lmp_result['n_train_total'] + carbon_result['n_train_total'],
     }
 
 
 def should_promote(new_metrics: dict, champion_metrics: dict) -> tuple:
-    """Decide if new model should be promoted. Returns (should_promote, reason)."""
+    """Decide if new model should be promoted. Returns (should_promote, reason).
+
+    Compares on the 30-min LMP ratio R² (the closest-horizon average
+    prediction we have for both versions). If the new model is at least
+    MIN_IMPROVEMENT better, promote.
+    """
     if not champion_metrics:
         return True, "no champion exists"
 
-    # Compare on LMP ratio R² (primary metric)
-    new_r2 = new_metrics.get('lmp_ratio_5m', {}).get('val_r2', 0)
-    old_r2 = champion_metrics.get('lmp_ratio_5m', {}).get('val_r2', 0)
+    # New metrics are nested: {lmp_ratio: {30m: {val_r2: ...}, ...}, carbon: {...}}
+    new_r2 = 0
+    if isinstance(new_metrics, dict):
+        lmp = new_metrics.get('lmp_ratio', {})
+        if isinstance(lmp, dict):
+            # Prefer 30m (shortest horizon, most comparable), fall back to 1h
+            new_r2 = lmp.get('30m', lmp.get('1h', {})).get('val_r2', 0)
+
+    old_r2 = 0
+    if isinstance(champion_metrics, dict):
+        lmp = champion_metrics.get('lmp_ratio', {})
+        if isinstance(lmp, dict):
+            old_r2 = lmp.get('30m', lmp.get('1h', {})).get('val_r2', 0)
+        # Backward compat: v0.1 had flat metrics with lmp_ratio_5m key
+        if old_r2 == 0:
+            old_r2 = champion_metrics.get('lmp_ratio_5m', {}).get('val_r2', 0)
+
     min_improvement = float(os.environ.get('MIN_IMPROVEMENT', '0.01'))
 
     if new_r2 >= old_r2 + min_improvement:
-        return True, f"new R²={new_r2:.4f} > old R²={old_r2:.4f} + {min_improvement}"
-    return False, f"new R²={new_r2:.4f} < old R²={old_r2:.4f} + {min_improvement}"
+        return True, f"new 30m R²={new_r2:.4f} > old R²={old_r2:.4f} + {min_improvement}"
+    return False, f"new 30m R²={new_r2:.4f} < old R²={old_r2:.4f} + {min_improvement}"
 
 
 def main():

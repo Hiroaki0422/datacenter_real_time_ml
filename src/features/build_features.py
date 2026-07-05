@@ -20,7 +20,7 @@ import json
 import os
 from pathlib import Path
 
-PROJECT_ROOT = Path('/root/project/dc_real_time')
+PROJECT_ROOT = Path(os.environ.get('PROJECT_ROOT', '/root/project/dc_real_time'))
 PROCESSED = PROJECT_ROOT / 'data' / 'processed'
 EXTERNAL = PROJECT_ROOT / 'data' / 'external'
 ARTIFACTS = PROJECT_ROOT / 'artifacts'

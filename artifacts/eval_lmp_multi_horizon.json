@@ -1,53 +1,26 @@
 {
   "experiment": "lmp_ratio_multi_horizon",
+  "version": "v0.2",
   "horizons_tested": [
-    5,
-    15,
     30,
     60,
     120,
     240
   ],
-  "best_horizon_min": 5,
-  "best_val_r2": 0.705869197845459,
-  "best_test_r2": 0.5897127985954285,
+  "horizon_labels": {
+    "30": "30m",
+    "60": "1h",
+    "120": "2h",
+    "240": "4h"
+  },
+  "best_horizon_min": 30,
+  "best_horizon_label": "30m",
+  "best_val_r2": 0.6383654475212097,
+  "best_test_r2": 0.5151307582855225,
   "all_results": [
     {
-      "horizon_min": 5,
-      "best_iteration": 66,
-      "val_mae": 0.2356722205877304,
-      "val_rmse": 0.6434973081904429,
-      "val_r2": 0.705869197845459,
-      "test_mae": 0.46231207251548767,
-      "test_rmse": 0.9337451125786883,
-      "test_r2": 0.5897127985954285,
-      "baseline_mae_val": 1.14314603805542,
-      "baseline_mae_test": 1.2011555433273315,
-      "baseline_predict_mean_mae": 0.4969874918460846,
-      "baseline_predict_mean_r2": -0.004997968673706055,
-      "n_train": 155610,
-      "n_val": 77832,
-      "n_test": 63042
-    },
-    {
-      "horizon_min": 15,
-      "best_iteration": 165,
-      "val_mae": 0.24839410185813904,
-      "val_rmse": 0.6736701448425634,
-      "val_r2": 0.6745092868804932,
-      "test_mae": 0.494182825088501,
-      "test_rmse": 0.9765339046106364,
-      "test_r2": 0.545689582824707,
-      "baseline_mae_val": 1.1427150964736938,
-      "baseline_mae_test": 1.198785424232483,
-      "baseline_predict_mean_mae": 0.4912731647491455,
-      "baseline_predict_mean_r2": -0.0051261186599731445,
-      "n_train": 155604,
-      "n_val": 77832,
-      "n_test": 63042
-    },
-    {
       "horizon_min": 30,
+      "horizon_label": "30m",
       "best_iteration": 123,
       "val_mae": 0.2664225399494171,
       "val_rmse": 0.7024763506170106,
@@ -55,16 +28,16 @@
       "test_mae": 0.5041182637214661,
       "test_rmse": 1.0043006448812217,
       "test_r2": 0.5151307582855225,
-      "baseline_mae_val": 1.1405659914016724,
-      "baseline_mae_test": 1.1980479955673218,
       "baseline_predict_mean_mae": 0.4844163656234741,
       "baseline_predict_mean_r2": -0.005060553550720215,
       "n_train": 155595,
       "n_val": 77832,
-      "n_test": 63036
+      "n_test": 63036,
+      "model_path": "models/v0.2/lmp_ratio_30m.json"
     },
     {
       "horizon_min": 60,
+      "horizon_label": "1h",
       "best_iteration": 79,
       "val_mae": 0.2820151150226593,
       "val_rmse": 0.7576350368079762,
@@ -72,16 +45,16 @@
       "test_mae": 0.49889469146728516,
       "test_rmse": 1.0769156155091963,
       "test_r2": 0.43514060974121094,
-      "baseline_mae_val": 1.134616494178772,
-      "baseline_mae_test": 1.1959704160690308,
       "baseline_predict_mean_mae": 0.47046151757240295,
       "baseline_predict_mean_r2": -0.0048389434814453125,
       "n_train": 155577,
       "n_val": 77832,
-      "n_test": 63030
+      "n_test": 63030,
+      "model_path": "models/v0.2/lmp_ratio_1h.json"
     },
     {
       "horizon_min": 120,
+      "horizon_label": "2h",
       "best_iteration": 53,
       "val_mae": 0.3223692774772644,
       "val_rmse": 0.8529270683092871,
@@ -89,16 +62,16 @@
       "test_mae": 0.6239103674888611,
       "test_rmse": 1.3109129893179177,
       "test_r2": 0.14824992418289185,
-      "baseline_mae_val": 1.1267220973968506,
-      "baseline_mae_test": 1.1938223838806152,
       "baseline_predict_mean_mae": 0.44972845911979675,
       "baseline_predict_mean_r2": -0.0044460296630859375,
       "n_train": 155541,
       "n_val": 77832,
-      "n_test": 63015
+      "n_test": 63015,
+      "model_path": "models/v0.2/lmp_ratio_2h.json"
     },
     {
       "horizon_min": 240,
+      "horizon_label": "4h",
       "best_iteration": 19,
       "val_mae": 0.3500208258628845,
       "val_rmse": 0.9236122185518004,
@@ -106,13 +79,12 @@
       "test_mae": 0.6427323818206787,
       "test_rmse": 1.3248878521512275,
       "test_r2": 0.06757116317749023,
-      "baseline_mae_val": 1.1080807447433472,
-      "baseline_mae_test": 1.183495283126831,
       "baseline_predict_mean_mae": 0.4111287593841553,
       "baseline_predict_mean_r2": -0.0039664506912231445,
       "n_train": 155469,
       "n_val": 77832,
-      "n_test": 62988
+      "n_test": 62988,
+      "model_path": "models/v0.2/lmp_ratio_4h.json"
     }
   ]
 }

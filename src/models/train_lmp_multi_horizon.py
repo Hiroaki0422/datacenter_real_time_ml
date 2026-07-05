@@ -1,20 +1,27 @@
 """
-Multi-horizon LMP ratio experiment.
+Multi-horizon LMP ratio training.
 
-Trains XGBoost regressor at multiple forward horizons (5, 15, 30, 60, 120, 240 min)
-on the full 1y of LMP data (LMP coverage is complete; only GHG is May-Jul).
+Trains XGBoost regressor at 4 forward horizons: 30, 60, 120, 240 minutes
+(30m, 1h, 2h, 4h — the user's "predict averages" horizons).
+The 5-min and 15-min horizons are dropped — they aren't averages.
 
-Picks the best horizon by val R².
-Saves comparison table + best model.
+Saves ALL 4 models to models/{version}/:
+  - lmp_ratio_30m.json
+  - lmp_ratio_1h.json
+  - lmp_ratio_2h.json
+  - lmp_ratio_4h.json
 
-Output:
-  - models/v0.1/lmp_ratio_best.json (best model)
-  - artifacts/lmp_horizon_comparison.csv (all horizons)
-  - artifacts/eval_lmp_multi_horizon.json (winner metrics)
+Also writes:
+  - artifacts/lmp_horizon_comparison.csv (all 4 horizons)
+  - artifacts/eval_lmp_multi_horizon.json (per-horizon metrics)
+
+Usage:
+  python -m src.models.train_lmp_multi_horizon [--version v0.2]
 """
 import pandas as pd
 import numpy as np
 import json
+import argparse
 from pathlib import Path
 import xgboost as xgb
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -22,14 +29,14 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-PROJECT_ROOT = Path('/root/project/dc_real_time')
+import os
+PROJECT_ROOT = Path(os.environ.get('PROJECT_ROOT', '/root/project/dc_real_time'))
 PROCESSED = PROJECT_ROOT / 'data' / 'processed'
 ARTIFACTS = PROJECT_ROOT / 'artifacts'
-MODELS = PROJECT_ROOT / 'models' / 'v0.1'
-MODELS.mkdir(parents=True, exist_ok=True)
 
-# Forward horizons to test (in minutes)
-HORIZONS_MIN = [5, 15, 30, 60, 120, 240]
+# The 4 horizons we save as separate models (user spec: 30m, 1h, 2h, 4h averages)
+HORIZONS_MIN = [30, 60, 120, 240]
+HORIZON_LABELS = {30: '30m', 60: '1h', 120: '2h', 240: '4h'}
 
 
 def load_data():
@@ -89,23 +96,54 @@ def encode_zone(train, val, test):
     return train, val, test, [f'zone_{z}' for z in zones]
 
 
-def main():
+def main(version: str = 'v0.1') -> dict:
+    """Train LMP ratio models at 4 horizons (30m, 1h, 2h, 4h) and save all to models/{version}/.
+
+    Returns: {
+        'version': str,
+        'horizons': {
+            '30m': {'val_r2': ..., 'test_r2': ..., 'model_path': 'models/v0.1/lmp_ratio_30m.json'},
+            '1h': {...},
+            '2h': {...},
+            '4h': {...},
+        },
+        'n_train_total': int,
+    }
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--version', default=version, help='model version dir name (e.g. v0.2)')
+    # Only parse args if invoked as a script (sys.argv[0] ends in train_lmp_multi_horizon.py
+    # or .py, but if imported from another module, skip parsing to avoid stealing parent args).
+    import sys as _sys
+    if _sys.argv and 'train_lmp_multi_horizon' in _sys.argv[0]:
+        args = parser.parse_args()
+    else:
+        # Called as a library; try to parse only known args, fall back to default
+        try:
+            args, _ = parser.parse_known_args()
+        except SystemExit:
+            args = parser.parse_args([])  # all defaults
+    version = args.version
+
+    models_dir = PROJECT_ROOT / 'models' / version
+    models_dir.mkdir(parents=True, exist_ok=True)
+
     print("=" * 60)
-    print("LMP RATIO: Multi-Horizon Experiment")
+    print(f"LMP RATIO: Multi-Horizon Training (version={version})")
     print(f"Horizons (min): {HORIZONS_MIN}")
-    print("Data: full 1y (LMP coverage complete)")
+    print(f"Models dir: {models_dir}")
     print("=" * 60)
 
     features, lmp = load_data()
     print(f"Features rows: {len(features):,}")
 
     results = []
-    best_r2 = -np.inf
-    best_horizon = None
+    horizon_metrics = {}
 
     for horizon in HORIZONS_MIN:
+        label = HORIZON_LABELS[horizon]
         print(f"\n{'='*60}")
-        print(f"HORIZON = {horizon} min")
+        print(f"HORIZON = {horizon} min ({label})")
         print(f"{'='*60}")
 
         # Add target at this horizon
@@ -142,11 +180,6 @@ def main():
         y_val = val[target_col].values.astype(np.float32)
         y_test = test[target_col].values.astype(np.float32)
 
-        # Winsorize
-        # (features already winsorized in build_features.py, so just confirm no inf)
-        # If anything's still extreme, clip at q_hi
-        # We could re-apply here, but skip for now
-
         model = xgb.XGBRegressor(
             objective='reg:squarederror',
             eval_metric='rmse',
@@ -176,12 +209,6 @@ def main():
         test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
         test_r2 = r2_score(y_test, y_test_pred) if y_test.std() > 0 else 0
 
-        # Baseline: predict-0 and predict-mean
-        baseline_mae_val = float(np.abs(y_val).mean())
-        baseline_rmse_val = float(np.sqrt((y_val**2).mean()))
-        baseline_mae_test = float(np.abs(y_test).mean())
-        baseline_rmse_test = float(np.sqrt((y_test**2).mean()))
-
         # Predict-mean baseline
         mean_pred = float(y_train.mean())
         val_mae_mean = float(np.abs(y_val - mean_pred).mean())
@@ -190,27 +217,36 @@ def main():
 
         print(f"\n  Val:   MAE={val_mae:.4f}, RMSE={val_rmse:.4f}, R²={val_r2:.4f}")
         print(f"  Test:  MAE={test_mae:.4f}, RMSE={test_rmse:.4f}, R²={test_r2:.4f}")
-        print(f"  Baseline (predict 0):   Val MAE={baseline_mae_val:.4f}, Test MAE={baseline_mae_test:.4f}")
         print(f"  Baseline (predict mean): Val MAE={val_mae_mean:.4f}, R²={val_r2_mean:.4f}")
         print(f"  Best iter: {model.best_iteration}")
 
+        # Save model for this horizon
+        model_path = models_dir / f'lmp_ratio_{label}.json'
+        model.save_model(model_path)
+        print(f"  ★ Saved {model_path.name}")
+
         results.append({
             'horizon_min': horizon,
+            'horizon_label': label,
             'best_iteration': int(model.best_iteration),
             'val_mae': val_mae, 'val_rmse': val_rmse, 'val_r2': val_r2,
             'test_mae': test_mae, 'test_rmse': test_rmse, 'test_r2': test_r2,
-            'baseline_mae_val': baseline_mae_val, 'baseline_mae_test': baseline_mae_test,
             'baseline_predict_mean_mae': val_mae_mean,
             'baseline_predict_mean_r2': val_r2_mean,
             'n_train': len(train), 'n_val': len(val), 'n_test': len(test),
+            'model_path': str(model_path.relative_to(PROJECT_ROOT)),
         })
 
-        if val_r2 > best_r2:
-            best_r2 = val_r2
-            best_horizon = horizon
-            model_path = MODELS / 'lmp_ratio_best.json'
-            model.save_model(model_path)
-            print(f"  ★ New best (val R²={val_r2:.4f}) — saved as lmp_ratio_best.json")
+        horizon_metrics[label] = {
+            'val_r2': val_r2,
+            'val_mae': val_mae,
+            'val_rmse': val_rmse,
+            'test_r2': test_r2,
+            'test_mae': test_mae,
+            'test_rmse': test_rmse,
+            'n_train': len(train),
+            'model_path': str(model_path.relative_to(PROJECT_ROOT)),
+        }
 
     # Save comparison
     df = pd.DataFrame(results)
@@ -221,14 +257,17 @@ def main():
     print(df.sort_values('val_r2', ascending=False).to_string(index=False))
 
     best = df.loc[df['val_r2'].idxmax()]
-    print(f"\n★ Best horizon: {int(best['horizon_min'])} min")
+    print(f"\n★ Best horizon: {int(best['horizon_min'])} min ({best['horizon_label']})")
     print(f"  Val R²: {best['val_r2']:.4f}, MAE: {best['val_mae']:.4f}")
     print(f"  Test R²: {best['test_r2']:.4f}, MAE: {best['test_mae']:.4f}")
 
     summary = {
         'experiment': 'lmp_ratio_multi_horizon',
+        'version': version,
         'horizons_tested': HORIZONS_MIN,
+        'horizon_labels': HORIZON_LABELS,
         'best_horizon_min': int(best['horizon_min']),
+        'best_horizon_label': best['horizon_label'],
         'best_val_r2': float(best['val_r2']),
         'best_test_r2': float(best['test_r2']),
         'all_results': results,
@@ -250,7 +289,7 @@ def main():
 
     axes[1].plot(df['horizon_min'], df['val_mae'], 'o-', label='Val MAE')
     axes[1].plot(df['horizon_min'], df['test_mae'], 's-', label='Test MAE')
-    axes[1].plot(df['horizon_min'], df['baseline_mae_val'], '^--', label='Baseline (predict 0)', alpha=0.5)
+    axes[1].plot(df['horizon_min'], df['baseline_predict_mean_mae'], '^--', label='Baseline (predict mean)', alpha=0.5)
     axes[1].set_xlabel('Forward horizon (min)')
     axes[1].set_ylabel('MAE (LMP ratio)')
     axes[1].set_title('LMP Model: MAE vs Forward Horizon')
@@ -261,6 +300,18 @@ def main():
     plt.savefig(ARTIFACTS / 'lmp_horizon_comparison.png', dpi=100)
     print(f"  Plot: {ARTIFACTS / 'lmp_horizon_comparison.png'}")
 
+    return {
+        'version': version,
+        'horizons': horizon_metrics,
+        'n_train_total': sum(r['n_train'] for r in results),
+        'best_horizon': best['horizon_label'],
+    }
+
 
 if __name__ == '__main__':
-    main()
+    result = main()
+    print("\n=== Training complete ===")
+    print(f"Version: {result['version']}")
+    print(f"Best horizon: {result['best_horizon']}")
+    for label, m in result['horizons'].items():
+        print(f"  {label}: val_R²={m['val_r2']:.4f}, model={m['model_path']}")

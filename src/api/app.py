@@ -34,41 +34,72 @@ app = FastAPI(
 
 # === Model loading ===
 MODELS_DIR = Path('/app/models/champion')
-LMP_MODEL = None
-CARBON_MODEL = None
+# Per-horizon model dict: {horizon: (lmp_model, carbon_model, loaded_at)}
+LMP_MODELS = {}     # horizon -> model
+CARBON_MODELS = {}  # horizon -> model
+DEFAULT_HORIZON = '30m'
+SUPPORTED_HORIZONS = ['30m', '1h', '2h', '4h']
+
 MODEL_METADATA = {
     "lmp_ratio_loaded": False,
     "carbon_loaded": False,
     "loaded_at": None,
     "lmp_path": None,
     "carbon_path": None,
+    "horizons_loaded": [],
 }
 
 
-def _load_model(model_name: str):
-    """Load an XGBoost model from the champion directory."""
-    path = MODELS_DIR / model_name
+def _load_model(model_name: str, horizon: str = '30m'):
+    """Load an XGBoost model from the champion directory.
+
+    Args:
+        model_name: e.g. 'lmp_ratio' or 'carbon'. Resolves to
+                    lmp_ratio_{horizon}.json or carbon_{horizon}.json
+        horizon: '30m' | '1h' | '2h' | '4h' (default '30m' — closest to v0.1's 5-min)
+    """
+    fname = f"{model_name}_{horizon}.json"
+    path = MODELS_DIR / fname
     if not path.exists():
-        logger.warning(f"  {model_name} not found at {path}")
-        return None, None
+        # Fallback to v0.1's flat filename
+        legacy = MODELS_DIR / f"{model_name}.json"
+        if legacy.exists():
+            path = legacy
+        else:
+            logger.warning(f"  {fname} (and {legacy.name}) not found at {MODELS_DIR}")
+            return None, None
     try:
         model = xgb.XGBRegressor()
         model.load_model(str(path))
-        logger.info(f"  Loaded {model_name} from {path}")
+        logger.info(f"  Loaded {fname} from {path}")
         return model, str(path)
     except Exception as e:
-        logger.error(f"  Failed to load {model_name}: {e}")
+        logger.error(f"  Failed to load {fname}: {e}")
         return None, None
 
 
 def load_models():
-    """Load both models. Called on startup and on /admin/reload."""
-    global LMP_MODEL, CARBON_MODEL
-    LMP_MODEL, MODEL_METADATA['lmp_path'] = _load_model('lmp_ratio.json')
-    CARBON_MODEL, MODEL_METADATA['carbon_path'] = _load_model('carbon.json')
-    MODEL_METADATA['lmp_ratio_loaded'] = LMP_MODEL is not None
-    MODEL_METADATA['carbon_loaded'] = CARBON_MODEL is not None
+    """Load all horizon models. Called on startup and on /admin/reload."""
+    global LMP_MODELS, CARBON_MODELS
+    LMP_MODELS = {}
+    CARBON_MODELS = {}
+    paths_seen = []
+    for h in SUPPORTED_HORIZONS:
+        lmp_m, lmp_p = _load_model('lmp_ratio', h)
+        c_m, c_p = _load_model('carbon', h)
+        if lmp_m is not None:
+            LMP_MODELS[h] = lmp_m
+            paths_seen.append(lmp_p)
+        if c_m is not None:
+            CARBON_MODELS[h] = c_m
+            paths_seen.append(c_p)
+    MODEL_METADATA['lmp_ratio_loaded'] = bool(LMP_MODELS)
+    MODEL_METADATA['carbon_loaded'] = bool(CARBON_MODELS)
     MODEL_METADATA['loaded_at'] = datetime.now().isoformat()
+    MODEL_METADATA['lmp_path'] = list(LMP_MODELS.keys())
+    MODEL_METADATA['carbon_path'] = list(CARBON_MODELS.keys())
+    MODEL_METADATA['horizons_loaded'] = list(LMP_MODELS.keys())
+    logger.info(f"  Loaded horizons: {list(LMP_MODELS.keys())}")
 
 
 # Load on startup
@@ -420,10 +451,17 @@ def model_info():
 
 
 @app.get("/forecast/{zone}")
-def forecast(zone: str):
-    """Get forecast for a CAISO zone (NP15, SP15, ZP26)."""
+def forecast(zone: str, horizon: str = '30m'):
+    """Get forecast for a CAISO zone at the given forward horizon.
+
+    Args:
+        zone: NP15 | SP15 | ZP26
+        horizon: 30m (default) | 1h | 2h | 4h
+    """
     if zone not in ['NP15', 'SP15', 'ZP26']:
         raise HTTPException(status_code=404, detail=f"Unknown zone: {zone}")
+    if horizon not in SUPPORTED_HORIZONS:
+        raise HTTPException(status_code=400, detail=f"Unknown horizon: {horizon}. Supported: {SUPPORTED_HORIZONS}")
 
     # Try to get live data from Redis
     cached = None
@@ -458,36 +496,60 @@ def forecast(zone: str):
     )
     zone_dummies = zone_to_dummies(zone)
 
+    # Pick the model for the requested horizon (do this before building features
+    # so we know how many features the model expects).
+    lmp_model = LMP_MODELS.get(horizon)
+    carbon_model = CARBON_MODELS.get(horizon)
+    # LMP and carbon models may have different expected feature counts
+    # (LMP v0.2 = 48, Carbon v0.2 = 51). Pad to the max so both work.
+    lmp_expected = lmp_model.get_booster().num_features() if lmp_model is not None else 51
+    carbon_expected = carbon_model.get_booster().num_features() if carbon_model is not None else 51
+    expected_features = max(lmp_expected, carbon_expected)
+
     # Pad features to include zone dummies (model expects them in train)
     if FEATURE_COLS:
         # Add zone dummies in the order expected by model
-        feature_with_zone = np.concatenate([
+        base = np.concatenate([
             features,
             np.array([[zone_dummies['zone_NP15'],
                        zone_dummies['zone_SP15'],
                        zone_dummies['zone_ZP26']]], dtype=np.float32),
         ], axis=1)
-        # Model was trained with 51 features; pad with zeros if short
-        if feature_with_zone.shape[1] < 51:
-            pad = np.zeros((1, 51 - feature_with_zone.shape[1]), dtype=np.float32)
-            feature_with_zone = np.concatenate([feature_with_zone, pad], axis=1)
+        # Build per-model feature vectors. LMP and carbon models may have
+        # different expected feature counts (LMP v0.2 = 48, Carbon v0.2 = 51)
+        # because the two training scripts have different feature pipelines.
+        def fit_to(model, vec):
+            if model is None:
+                return None
+            n = model.get_booster().num_features()
+            if vec.shape[1] < n:
+                pad = np.zeros((1, n - vec.shape[1]), dtype=np.float32)
+                return np.concatenate([vec, pad], axis=1)
+            elif vec.shape[1] > n:
+                return vec[:, :n]
+            return vec
+        feature_with_zone_lmp = fit_to(lmp_model, base)
+        feature_with_zone_carbon = fit_to(carbon_model, base)
+        # For backwards compat (DC endpoint, etc.) use the LMP-shaped vector
+        feature_with_zone = feature_with_zone_lmp if feature_with_zone_lmp is not None else base
     else:
-        # Fallback: provide 51 zeros
-        feature_with_zone = np.zeros((1, 51), dtype=np.float32)
+        feature_with_zone = None
+        feature_with_zone_lmp = None
+        feature_with_zone_carbon = None
 
     # Predict LMP ratio
     lmp_ratio_pred = None
-    if LMP_MODEL is not None and FEATURE_COLS is not None:
+    if lmp_model is not None and feature_with_zone_lmp is not None:
         try:
-            lmp_ratio_pred = float(LMP_MODEL.predict(feature_with_zone)[0])
+            lmp_ratio_pred = float(lmp_model.predict(feature_with_zone_lmp)[0])
         except Exception as e:
             logger.error(f"  LMP prediction failed: {e}")
 
     # Predict carbon
     carbon_pred = None
-    if CARBON_MODEL is not None and FEATURE_COLS is not None:
+    if carbon_model is not None and feature_with_zone_carbon is not None:
         try:
-            carbon_pred = float(CARBON_MODEL.predict(feature_with_zone)[0])
+            carbon_pred = float(carbon_model.predict(feature_with_zone_carbon)[0])
         except Exception as e:
             logger.error(f"  Carbon prediction failed: {e}")
 
@@ -496,7 +558,8 @@ def forecast(zone: str):
 
     return {
         "zone": zone,
-        "horizon_min": 5,
+        "horizon": horizon,
+        "horizon_min": {'30m': 30, '1h': 60, '2h': 120, '4h': 240}[horizon],
         "predicted_at": now.isoformat(),
         "load_mw": load_mw,
         "lmp_ratio_pred": lmp_ratio_pred,

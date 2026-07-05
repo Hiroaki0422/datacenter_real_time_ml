@@ -1,20 +1,27 @@
 """
-Multi-horizon carbon (GHG) experiment.
+Multi-horizon carbon (GHG) training.
 
-Trains XGBoost regressor at multiple forward horizons (5, 15, 30, 60, 120, 240 min)
-on May-Jul 2026 data (the only window with non-zero GHG).
+Trains XGBoost regressor at 4 forward horizons: 30, 60, 120, 240 minutes
+(30m, 1h, 2h, 4h — the user's "predict averages" horizons).
+The 5-min and 15-min horizons are dropped — they aren't averages.
 
-Picks the best horizon by val R².
-Saves comparison table + best model.
+Saves ALL 4 models to models/{version}/:
+  - carbon_30m.json
+  - carbon_1h.json
+  - carbon_2h.json
+  - carbon_4h.json
 
-Output:
-  - models/v0.1/carbon_best.json (best model)
-  - artifacts/carbon_horizon_comparison.csv (all horizons)
-  - artifacts/eval_carbon_multi_horizon.json (winner metrics)
+Also writes:
+  - artifacts/carbon_horizon_comparison.csv (all 4 horizons)
+  - artifacts/eval_carbon_multi_horizon.json (per-horizon metrics)
+
+Usage:
+  python -m src.models.train_carbon_multi_horizon [--version v0.2]
 """
 import pandas as pd
 import numpy as np
 import json
+import argparse
 from pathlib import Path
 import xgboost as xgb
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -22,17 +29,17 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-PROJECT_ROOT = Path('/root/project/dc_real_time')
+import os
+PROJECT_ROOT = Path(os.environ.get('PROJECT_ROOT', '/root/project/dc_real_time'))
 PROCESSED = PROJECT_ROOT / 'data' / 'processed'
 ARTIFACTS = PROJECT_ROOT / 'artifacts'
-MODELS = PROJECT_ROOT / 'models' / 'v0.1'
-MODELS.mkdir(parents=True, exist_ok=True)
 
 # Carbon data is only available May-Jul 2026
 GHG_START = pd.Timestamp('2026-05-01', tz='US/Pacific')
 
-# Forward horizons to test (in minutes)
-HORIZONS_MIN = [5, 15, 30, 60, 120, 240]
+# The 4 horizons we save as separate models (user spec: 30m, 1h, 2h, 4h averages)
+HORIZONS_MIN = [30, 60, 120, 240]
+HORIZON_LABELS = {30: '30m', 60: '1h', 120: '2h', 240: '4h'}
 
 
 def load_data():
@@ -208,21 +215,51 @@ def time_split(df, train_frac=0.6, val_frac=0.2):
     return df
 
 
-def main():
+def main(version: str = 'v0.1') -> dict:
+    """Train carbon models at 4 horizons (30m, 1h, 2h, 4h) and save all to models/{version}/.
+
+    Returns: {
+        'version': str,
+        'horizons': {
+            '30m': {'val_r2': ..., 'test_r2': ..., 'model_path': 'models/v0.1/carbon_30m.json'},
+            '1h': {...}, '2h': {...}, '4h': {...},
+        },
+        'n_train_total': int,
+    }
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--version', default=version, help='model version dir name (e.g. v0.2)')
+    # Only parse args if invoked as a script (avoid stealing parent args when imported)
+    import sys as _sys
+    if _sys.argv and 'train_carbon_multi_horizon' in _sys.argv[0]:
+        args = parser.parse_args()
+    else:
+        try:
+            args, _ = parser.parse_known_args()
+        except SystemExit:
+            args = parser.parse_args([])
+    version = args.version
+
+    models_dir = PROJECT_ROOT / 'models' / version
+    models_dir.mkdir(parents=True, exist_ok=True)
+
     print("=" * 60)
-    print("CARBON MODEL: Multi-Horizon Experiment")
+    print(f"CARBON MODEL: Multi-Horizon Training (version={version})")
     print(f"GHG data window: {GHG_START.date()} onwards")
     print(f"Horizons (min): {HORIZONS_MIN}")
+    print(f"Models dir: {models_dir}")
     print("=" * 60)
 
     lmp, fm = load_data()
     print(f"LMP rows: {len(lmp):,}, Fuel mix rows: {len(fm):,}")
 
     results = []
+    horizon_metrics = {}
 
     for horizon in HORIZONS_MIN:
+        label = HORIZON_LABELS[horizon]
         print(f"\n{'='*60}")
-        print(f"HORIZON = {horizon} min")
+        print(f"HORIZON = {horizon} min ({label})")
         print(f"{'='*60}")
 
         target_col = f'ghg_target_{horizon}m'
@@ -297,7 +334,6 @@ def main():
         # Baseline: predict-0
         baseline_mae = float(np.abs(y_val).mean())
         baseline_rmse = float(np.sqrt((y_val**2).mean()))
-        baseline_r2 = 0  # by definition (predicting mean would be 0)
 
         print(f"\n  Val:   MAE={val_mae:.4f}, RMSE={val_rmse:.4f}, R²={val_r2:.4f}")
         print(f"          (non-zero: MAE={val_mae_nz:.4f}, RMSE={val_rmse_nz:.4f})")
@@ -306,8 +342,14 @@ def main():
         print(f"  Baseline (predict 0): MAE={baseline_mae:.4f}, RMSE={baseline_rmse:.4f}")
         print(f"  Best iter: {model.best_iteration}")
 
+        # Save model for this horizon
+        model_path = models_dir / f'carbon_{label}.json'
+        model.save_model(model_path)
+        print(f"  ★ Saved {model_path.name}")
+
         results.append({
             'horizon_min': horizon,
+            'horizon_label': label,
             'best_iteration': int(model.best_iteration),
             'val_mae': val_mae, 'val_rmse': val_rmse, 'val_r2': val_r2,
             'val_mae_nz': val_mae_nz, 'val_rmse_nz': val_rmse_nz,
@@ -317,18 +359,19 @@ def main():
             'n_train': len(train), 'n_val': len(val), 'n_test': len(test),
             'pct_nonzero_train': float((y_train > 0).mean() * 100),
             'pct_nonzero_val': float((y_val > 0).mean() * 100),
+            'model_path': str(model_path.relative_to(PROJECT_ROOT)),
         })
 
-        # Save best model
-        if horizon == 5 or results[-1]['val_r2'] > max(r['val_r2'] for r in results[:-1] or [results[-1]]):
-            # Save the best-so-far model
-            best_horizon = horizon
-            best_r2 = val_r2
-            model_path = MODELS / 'carbon_best.json'
-            model.save_model(model_path)
-            best_features = feature_cols
-            best_target = target_col
-            print(f"  ★ New best (val R²={val_r2:.4f}) — saved as carbon_best.json")
+        horizon_metrics[label] = {
+            'val_r2': val_r2,
+            'val_mae': val_mae,
+            'val_rmse': val_rmse,
+            'test_r2': test_r2,
+            'test_mae': test_mae,
+            'test_rmse': test_rmse,
+            'n_train': len(train),
+            'model_path': str(model_path.relative_to(PROJECT_ROOT)),
+        }
 
     # Save comparison table
     df = pd.DataFrame(results)
@@ -340,7 +383,7 @@ def main():
 
     # Best horizon
     best = df.loc[df['val_r2'].idxmax()]
-    print(f"\n★ Best horizon: {int(best['horizon_min'])} min")
+    print(f"\n★ Best horizon: {int(best['horizon_min'])} min ({best['horizon_label']})")
     print(f"  Val R²: {best['val_r2']:.4f}")
     print(f"  Val MAE: {best['val_mae']:.4f}")
     print(f"  Test R²: {best['test_r2']:.4f}")
@@ -349,9 +392,12 @@ def main():
     # Save summary
     summary = {
         'experiment': 'carbon_multi_horizon',
+        'version': version,
         'horizons_tested': HORIZONS_MIN,
+        'horizon_labels': HORIZON_LABELS,
         'data_window': f'{GHG_START.date()} onwards',
         'best_horizon_min': int(best['horizon_min']),
+        'best_horizon_label': best['horizon_label'],
         'best_val_r2': float(best['val_r2']),
         'best_test_r2': float(best['test_r2']),
         'all_results': results,
@@ -384,6 +430,18 @@ def main():
     plt.savefig(ARTIFACTS / 'carbon_horizon_comparison.png', dpi=100)
     print(f"  Plot: {ARTIFACTS / 'carbon_horizon_comparison.png'}")
 
+    return {
+        'version': version,
+        'horizons': horizon_metrics,
+        'n_train_total': sum(r['n_train'] for r in results),
+        'best_horizon': best['horizon_label'],
+    }
+
 
 if __name__ == '__main__':
-    main()
+    result = main()
+    print("\n=== Training complete ===")
+    print(f"Version: {result['version']}")
+    print(f"Best horizon: {result['best_horizon']}")
+    for label, m in result['horizons'].items():
+        print(f"  {label}: val_R²={m['val_r2']:.4f}, model={m['model_path']}")

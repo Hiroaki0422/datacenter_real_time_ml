@@ -1,74 +1,113 @@
 {
   "schema_version": "1.0",
   "champion": {
-    "version": "v0.1",
-    "registered_at": "2026-07-05T01:35:29.253753+00:00",
-    "git_sha": "47b4079",
+    "version": "v0.2",
+    "registered_at": "2026-07-05T18:52:30.977038+00:00",
+    "git_sha": "unknown",
     "data_hash": "444b16fbfb83",
     "metrics": {
       "lmp_ratio": {
-        "model": "xgb_regression_lmp_ratio_4h",
-        "n_features": 51,
-        "best_iteration": 16,
-        "val": {
-          "mae": 0.35786494612693787,
-          "rmse": 0.9251171256994217,
-          "r2": 0.17516767978668213
+        "30m": {
+          "val_r2": 0.6383654475212097,
+          "val_mae": 0.2664225399494171,
+          "val_rmse": 0.7024763506170106,
+          "test_r2": 0.5151307582855225,
+          "test_mae": 0.5041182637214661,
+          "test_rmse": 1.0043006448812217,
+          "n_train": 155595,
+          "model_path": "models/v0.2/lmp_ratio_30m.json"
         },
-        "test": {
-          "mae": 0.7135316729545593,
-          "rmse": 1.3867360718410882,
-          "r2": 0.029620707035064697
+        "1h": {
+          "val_r2": 0.5570772886276245,
+          "val_mae": 0.2820151150226593,
+          "val_rmse": 0.7576350368079762,
+          "test_r2": 0.43514060974121094,
+          "test_mae": 0.49889469146728516,
+          "test_rmse": 1.0769156155091963,
+          "n_train": 155577,
+          "model_path": "models/v0.2/lmp_ratio_1h.json"
         },
-        "baseline_hour_mean": {
-          "n_val": 77760,
+        "2h": {
+          "val_r2": 0.40061020851135254,
+          "val_mae": 0.3223692774772644,
+          "val_rmse": 0.8529270683092871,
+          "test_r2": 0.14824992418289185,
+          "test_mae": 0.6239103674888611,
+          "test_rmse": 1.3109129893179177,
+          "n_train": 155541,
+          "model_path": "models/v0.2/lmp_ratio_2h.json"
+        },
+        "4h": {
+          "val_r2": 0.17710036039352417,
+          "val_mae": 0.3500208258628845,
+          "val_rmse": 0.9236122185518004,
+          "test_r2": 0.06757116317749023,
+          "test_mae": 0.6427323818206787,
+          "test_rmse": 1.3248878521512275,
           "n_train": 155469,
-          "hour_mean": {
-            "mae": 0.3682128675751487,
-            "rmse": 0.978934501590784,
-            "r2": 0.076409408263163
-          },
-          "predict_zero": {
-            "mae": 1.108194836458265,
-            "rmse": 1.505221098572856,
-            "r2": -1.1835986869382564
-          },
-          "predict_mean": {
-            "mae": 0.41145111698269166,
-            "rmse": 1.0206473977780282,
-            "r2": -0.003976842129389535,
-            "value": 1.043958160369403
-          }
+          "model_path": "models/v0.2/lmp_ratio_4h.json"
         }
       },
       "carbon": {
-        "model": "xgb_regression_ghg_4h",
-        "n_features": 51,
-        "best_iteration": 0,
-        "val": {
-          "mae": 0.0,
-          "rmse": 0.0,
-          "r2": 0,
-          "mae_nonzero": 0,
-          "rmse_nonzero": 0
+        "30m": {
+          "val_r2": 0.742489755153656,
+          "val_mae": 1.6722816228866577,
+          "val_rmse": 2.738627065026187,
+          "test_r2": 0.6064364910125732,
+          "test_mae": 1.272839903831482,
+          "test_rmse": 2.077493786854181,
+          "n_train": 33495,
+          "model_path": "models/v0.2/carbon_30m.json"
         },
-        "test": {
-          "mae": 1.6316897869110107,
-          "rmse": 3.673773222152556,
-          "r2": -0.245741605758667,
-          "mae_nonzero": 4.554436206817627,
-          "rmse_nonzero": 6.137773856523093
+        "1h": {
+          "val_r2": 0.7131927013397217,
+          "val_mae": 1.7873756885528564,
+          "val_rmse": 2.798480036852612,
+          "test_r2": 0.5777031183242798,
+          "test_mae": 1.3081215620040894,
+          "test_rmse": 2.0624704069846675,
+          "n_train": 33477,
+          "model_path": "models/v0.2/carbon_1h.json"
         },
-        "data_caveat": "CAISO only publishes GHG for last ~90 days. Train/val mostly zero. Test (Apr-Jul 2026) has the actual events."
+        "2h": {
+          "val_r2": 0.6502147912979126,
+          "val_mae": 1.908073902130127,
+          "val_rmse": 2.9431805167123333,
+          "test_r2": 0.37314802408218384,
+          "test_mae": 1.5652132034301758,
+          "test_rmse": 2.369683991944852,
+          "n_train": 33441,
+          "model_path": "models/v0.2/carbon_2h.json"
+        },
+        "4h": {
+          "val_r2": 0.6519260406494141,
+          "val_mae": 1.7495810985565186,
+          "val_rmse": 2.709552950003615,
+          "test_r2": 0.2383747100830078,
+          "test_mae": 1.6510825157165527,
+          "test_rmse": 2.420019312537191,
+          "n_train": 33369,
+          "model_path": "models/v0.2/carbon_4h.json"
+        }
       }
     },
     "model_paths": {
-      "lmp_ratio": "models/v0.1/lmp_ratio.json",
-      "carbon": "models/v0.1/carbon.json"
+      "lmp_ratio": {
+        "30m": "models/v0.2/lmp_ratio_30m.json",
+        "1h": "models/v0.2/lmp_ratio_1h.json",
+        "2h": "models/v0.2/lmp_ratio_2h.json",
+        "4h": "models/v0.2/lmp_ratio_4h.json"
+      },
+      "carbon": {
+        "30m": "models/v0.2/carbon_30m.json",
+        "1h": "models/v0.2/carbon_1h.json",
+        "2h": "models/v0.2/carbon_2h.json",
+        "4h": "models/v0.2/carbon_4h.json"
+      }
     },
     "status": "champion",
-    "notes": "Backfilled: v0.1 was the initial training run before registry.py existed. Symlink was set manually with `ln -sfn models/v0.1 models/champion`. eval_lmp.json contains 4h-horizon metrics; the 5-min model is what serves.",
-    "promoted_at": "2026-07-05T01:35:29.254292+00:00"
+    "notes": "Auto-trained: --train flag set",
+    "promoted_at": "2026-07-05T18:52:30.979193+00:00"
   },
   "candidates": [
     {
@@ -142,6 +181,78 @@
       "promoted_at": "2026-07-05T01:35:29.254292+00:00"
     }
   ],
-  "history": [],
+  "history": [
+    {
+      "version": "v0.1",
+      "registered_at": "2026-07-05T01:35:29.253753+00:00",
+      "git_sha": "47b4079",
+      "data_hash": "444b16fbfb83",
+      "metrics": {
+        "lmp_ratio": {
+          "model": "xgb_regression_lmp_ratio_4h",
+          "n_features": 51,
+          "best_iteration": 16,
+          "val": {
+            "mae": 0.35786494612693787,
+            "rmse": 0.9251171256994217,
+            "r2": 0.17516767978668213
+          },
+          "test": {
+            "mae": 0.7135316729545593,
+            "rmse": 1.3867360718410882,
+            "r2": 0.029620707035064697
+          },
+          "baseline_hour_mean": {
+            "n_val": 77760,
+            "n_train": 155469,
+            "hour_mean": {
+              "mae": 0.3682128675751487,
+              "rmse": 0.978934501590784,
+              "r2": 0.076409408263163
+            },
+            "predict_zero": {
+              "mae": 1.108194836458265,
+              "rmse": 1.505221098572856,
+              "r2": -1.1835986869382564
+            },
+            "predict_mean": {
+              "mae": 0.41145111698269166,
+              "rmse": 1.0206473977780282,
+              "r2": -0.003976842129389535,
+              "value": 1.043958160369403
+            }
+          }
+        },
+        "carbon": {
+          "model": "xgb_regression_ghg_4h",
+          "n_features": 51,
+          "best_iteration": 0,
+          "val": {
+            "mae": 0.0,
+            "rmse": 0.0,
+            "r2": 0,
+            "mae_nonzero": 0,
+            "rmse_nonzero": 0
+          },
+          "test": {
+            "mae": 1.6316897869110107,
+            "rmse": 3.673773222152556,
+            "r2": -0.245741605758667,
+            "mae_nonzero": 4.554436206817627,
+            "rmse_nonzero": 6.137773856523093
+          },
+          "data_caveat": "CAISO only publishes GHG for last ~90 days. Train/val mostly zero. Test (Apr-Jul 2026) has the actual events."
+        }
+      },
+      "model_paths": {
+        "lmp_ratio": "models/v0.1/lmp_ratio.json",
+        "carbon": "models/v0.1/carbon.json"
+      },
+      "status": "champion",
+      "notes": "Backfilled: v0.1 was the initial training run before registry.py existed. Symlink was set manually with `ln -sfn models/v0.1 models/champion`. eval_lmp.json contains 4h-horizon metrics; the 5-min model is what serves.",
+      "promoted_at": "2026-07-05T01:35:29.254292+00:00",
+      "archived_at": "2026-07-05T18:52:30.979185+00:00"
+    }
+  ],
   "notes": "Empty registry. Models are added by training scripts. See src/models/registry.py"
 }

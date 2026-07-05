@@ -1,62 +1,27 @@
 {
   "experiment": "carbon_multi_horizon",
+  "version": "v0.2",
   "horizons_tested": [
-    5,
-    15,
     30,
     60,
     120,
     240
   ],
+  "horizon_labels": {
+    "30": "30m",
+    "60": "1h",
+    "120": "2h",
+    "240": "4h"
+  },
   "data_window": "2026-05-01 onwards",
-  "best_horizon_min": 5,
-  "best_val_r2": 0.8124173283576965,
-  "best_test_r2": 0.7649553418159485,
+  "best_horizon_min": 30,
+  "best_horizon_label": "30m",
+  "best_val_r2": 0.742489755153656,
+  "best_test_r2": 0.6064364910125732,
   "all_results": [
     {
-      "horizon_min": 5,
-      "best_iteration": 144,
-      "val_mae": 1.3812241554260254,
-      "val_rmse": 2.4307122231505898,
-      "val_r2": 0.8124173283576965,
-      "val_mae_nz": 2.5603742599487305,
-      "val_rmse_nz": 3.3491297431296863,
-      "test_mae": 0.8763436079025269,
-      "test_rmse": 1.6819827698676684,
-      "test_r2": 0.7649553418159485,
-      "test_mae_nz": 2.032424211502075,
-      "test_rmse_nz": 2.6929693236985357,
-      "baseline_mae": 4.355658531188965,
-      "baseline_rmse": 7.104163646697998,
-      "n_train": 33510,
-      "n_val": 11171,
-      "n_test": 11167,
-      "pct_nonzero_train": 23.94807520143241,
-      "pct_nonzero_val": 44.71399158535493
-    },
-    {
-      "horizon_min": 15,
-      "best_iteration": 130,
-      "val_mae": 1.5524523258209229,
-      "val_rmse": 2.6710670543495882,
-      "val_r2": 0.7652053833007812,
-      "val_mae_nz": 2.8857805728912354,
-      "val_rmse_nz": 3.7161189156056182,
-      "test_mae": 1.0363296270370483,
-      "test_rmse": 1.8455231109511496,
-      "test_r2": 0.704768717288971,
-      "test_mae_nz": 2.204741954803467,
-      "test_rmse_nz": 2.8518392350200776,
-      "baseline_mae": 4.353354454040527,
-      "baseline_rmse": 7.0241193771362305,
-      "n_train": 33504,
-      "n_val": 11171,
-      "n_test": 11161,
-      "pct_nonzero_train": 27.06840974212034,
-      "pct_nonzero_val": 47.39951660549637
-    },
-    {
       "horizon_min": 30,
+      "horizon_label": "30m",
       "best_iteration": 95,
       "val_mae": 1.6722816228866577,
       "val_rmse": 2.738627065026187,
@@ -74,10 +39,12 @@
       "n_val": 11171,
       "n_test": 11152,
       "pct_nonzero_train": 30.201522615315717,
-      "pct_nonzero_val": 49.70906812281801
+      "pct_nonzero_val": 49.70906812281801,
+      "model_path": "models/v0.2/carbon_30m.json"
     },
     {
       "horizon_min": 60,
+      "horizon_label": "1h",
       "best_iteration": 103,
       "val_mae": 1.7873756885528564,
       "val_rmse": 2.798480036852612,
@@ -95,10 +62,12 @@
       "n_val": 11171,
       "n_test": 11134,
       "pct_nonzero_train": 34.295187740836994,
-      "pct_nonzero_val": 52.28717214215379
+      "pct_nonzero_val": 52.28717214215379,
+      "model_path": "models/v0.2/carbon_1h.json"
     },
     {
       "horizon_min": 120,
+      "horizon_label": "2h",
       "best_iteration": 75,
       "val_mae": 1.908073902130127,
       "val_rmse": 2.9431805167123333,
@@ -116,10 +85,12 @@
       "n_val": 11171,
       "n_test": 11098,
       "pct_nonzero_train": 40.513142549564904,
-      "pct_nonzero_val": 55.724644167934834
+      "pct_nonzero_val": 55.724644167934834,
+      "model_path": "models/v0.2/carbon_2h.json"
     },
     {
       "horizon_min": 240,
+      "horizon_label": "4h",
       "best_iteration": 89,
       "val_mae": 1.7495810985565186,
       "val_rmse": 2.709552950003615,
@@ -137,7 +108,8 @@
       "n_val": 11171,
       "n_test": 11026,
       "pct_nonzero_train": 49.348197428751234,
-      "pct_nonzero_val": 62.37579446781846
+      "pct_nonzero_val": 62.37579446781846,
+      "model_path": "models/v0.2/carbon_4h.json"
     }
   ]
 }

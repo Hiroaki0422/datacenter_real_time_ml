@@ -117,6 +117,12 @@ def promote_to_champion(version: str) -> dict:
     candidate["status"] = "champion"
     candidate["promoted_at"] = datetime.now(timezone.utc).isoformat()
     registry["champion"] = candidate
+
+    # Remove the now-champion from candidates (it moved up)
+    registry["candidates"] = [
+        c for c in registry["candidates"] if c.get("version") != version
+    ]
+
     save_registry(registry)
 
     # Atomic symlink swap. Use a RELATIVE target so the symlink resolves
