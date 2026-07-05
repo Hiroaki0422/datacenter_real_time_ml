@@ -1,0 +1,65 @@
+# =============================================================================
+# dc_real_time — Docker Compose
+# =============================================================================
+# Single VPS deployment. Two services for D2: api + redis.
+# D3 adds trainer, D4 adds nginx.
+#
+# Usage:
+#   docker compose up -d              # start everything
+#   docker compose logs -f api        # tail API logs
+#   docker compose down               # stop everything
+#   docker compose restart api       # restart API (reloads model)
+#
+# Models, data, and artifacts are mounted as volumes from the host
+# so the container reads/writes the same files as the host.
+# =============================================================================
+
+services:
+  # ---- Redis: online feature store + cache ----
+  redis:
+    image: redis:7-alpine
+    container_name: dc_real_time_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    networks:
+      - dc_net
+
+  # ---- API: FastAPI service (D1 + D8 will fill in) ----
+  api:
+    image: dc_real_time_api:v0.1
+    container_name: dc_real_time_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - MODEL_VERSION=v0.1
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      # Mount models and data from the host so the container sees the same files
+      - ./models:/app/models
+      - ./data:/app/data:ro
+      - ./artifacts:/app/artifacts
+    networks:
+      - dc_net
+
+networks:
+  dc_net:
+    driver: bridge
+
+volumes:
+  redis_data:
+    name: dc_real_time_redis_data
