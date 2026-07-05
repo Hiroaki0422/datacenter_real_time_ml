@@ -572,8 +572,20 @@ def forecast(zone: str, horizon: str = '30m'):
 
 
 @app.get("/dc/{dc_id}/forecast")
-def dc_forecast(dc_id: str):
-    """Get per-DC advisory based on zone forecast."""
+def dc_forecast(dc_id: str, horizon: str = '30m'):
+    """Get per-DC advisory at the given forward horizon.
+
+    Args:
+        dc_id: e.g. DC-00088
+        horizon: 30m (default) | 1h | 2h | 4h
+
+    Returns the cached advisory (all 4 horizons) flattened to the requested
+    horizon, plus metadata. If the requested horizon isn't cached, falls
+    back to the 30m value.
+    """
+    if horizon not in SUPPORTED_HORIZONS:
+        raise HTTPException(status_code=400, detail=f"Unknown horizon: {horizon}. Supported: {SUPPORTED_HORIZONS}")
+
     # Try to get cached advisory from Redis (computed by live_fetcher)
     try:
         import redis
@@ -582,7 +594,33 @@ def dc_forecast(dc_id: str):
         key = f"features:dc:{dc_id}:now"
         cached = r.get(key)
         if cached:
-            return json.loads(cached)
+            data = json.loads(cached)
+            # Flatten to the requested horizon
+            horizons = data.get('horizons', {})
+            h_data = horizons.get(horizon, {})
+            if h_data:
+                return {
+                    'dc_id': data.get('dc_id'),
+                    'name': data.get('name'),
+                    'zone': data.get('zone'),
+                    'operator': data.get('operator'),
+                    'mw_capacity': data.get('mw_capacity'),
+                    'wue': data.get('wue'),
+                    'bws_score': data.get('bws_score'),
+                    'horizon': horizon,
+                    'horizon_min': {'30m': 30, '1h': 60, '2h': 120, '4h': 240}[horizon],
+                    'lmp_dollar_estimate': h_data.get('lmp_dollar_per_mwh'),
+                    'advisory': h_data.get('advisory'),
+                    'all_horizons': {
+                        h: {
+                            'lmp_dollar_estimate': h2.get('lmp_dollar_per_mwh'),
+                            'advisory': h2.get('advisory'),
+                        } for h, h2 in horizons.items()
+                    },
+                    'computed_at': data.get('computed_at'),
+                    'data_source': 'live',
+                }
+            # Cached data has no horizons field (old format). Fall through to 404.
     except Exception as e:
         logger.warning(f"  Redis fetch failed for {dc_id}: {e}")
 

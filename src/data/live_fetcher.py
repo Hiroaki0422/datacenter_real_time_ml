@@ -373,24 +373,60 @@ def cache_features(redis_client, zone: str, features: dict, ttl_sec: int = 300) 
 
 
 def cache_dc_advisory(redis_client, dc_id: str, advisory: dict, ttl_sec: int = 300) -> None:
-    """Cache per-DC advisory in Redis."""
+    """Cache per-DC advisory (single JSON with all 4 horizons) in Redis.
+
+    The advisory dict has shape:
+      {
+        'dc_id': ..., 'name': ..., 'zone': ..., 'mw_capacity': ..., 'wue': ..., 'bws_score': ...,
+        'horizons': {
+          '30m': {'lmp': 28.5, 'advisory': 'ok', 'computed_at': ...},
+          '1h':  {...}, '2h': {...}, '4h': {...},
+        },
+        'computed_at': ...,
+      }
+    """
     key = f"features:dc:{dc_id}:now"
     redis_client.setex(key, ttl_sec, json.dumps(advisory, default=str))
 
 
-# === Per-DC advisory logic ===
+def _lmp_to_advisory(lmp: float | None) -> str:
+    """Map a predicted LMP ($/MWh) to an advisory string."""
+    if lmp is None or (isinstance(lmp, float) and np.isnan(lmp)):
+        return "unknown"
+    if lmp > 100:
+        return "pause"
+    if lmp > 50:
+        return "defer"
+    if lmp > 30:
+        return "watch"
+    return "ok"
 
-def compute_dc_advisory(dc: pd.Series, zone_features: dict) -> dict:
-    """Compute advisory for a single DC based on zone state + DC attributes."""
-    predicted_lmp = zone_features.get('predicted_lmp', None)
-    advisory = "ok"
-    if predicted_lmp is not None:
-        if predicted_lmp > 100:
-            advisory = "pause"
-        elif predicted_lmp > 50:
-            advisory = "defer"
-        elif predicted_lmp > 30:
-            advisory = "watch"
+
+def compute_dc_advisory(dc: pd.Series, zone_horizons: dict) -> dict:
+    """Compute per-horizon advisory for a single DC.
+
+    Args:
+        dc: row from ca_dc_sites.csv (must have dc_id, name, provider, caiso_zone, etc.)
+        zone_horizons: {
+          '30m': 27.5,    # $/MWh, or None
+          '1h':  31.2,
+          '2h':  29.0,
+          '4h':  33.5,
+        }
+        The per-horizon LMP for the DC's zone — comes from the zone's per-horizon
+        prediction (currently all DCs in a zone get the same value, but the
+        schema supports per-DC future personalization).
+    """
+    horizons = {}
+    for h in ['30m', '1h', '2h', '4h']:
+        lmp = zone_horizons.get(h)
+        horizons[h] = {
+            'lmp_dollar_per_mwh': lmp,
+            'advisory': _lmp_to_advisory(lmp),
+        }
+    # Primary advisory = worst across all 4 horizons (most conservative for ops)
+    severity = {'ok': 0, 'unknown': 1, 'watch': 2, 'defer': 3, 'pause': 4}
+    worst = max(horizons.values(), key=lambda x: severity.get(x['advisory'], 1))['advisory']
     return {
         'dc_id': dc.get('dc_id'),
         'name': dc.get('name'),
@@ -399,10 +435,35 @@ def compute_dc_advisory(dc: pd.Series, zone_features: dict) -> dict:
         'mw_capacity': float(dc.get('MW_total_power', 0)) if pd.notna(dc.get('MW_total_power')) else 0,
         'wue': float(dc.get('wue_default', 1.18)) if pd.notna(dc.get('wue_default')) else 1.18,
         'bws_score': float(dc.get('bws_score', 0)) if pd.notna(dc.get('bws_score')) else 0,
-        'predicted_lmp': predicted_lmp,
-        'advisory': advisory,
+        'advisory': worst,           # worst-case across all horizons
+        'horizons': horizons,
         'computed_at': datetime.now(timezone.utc).isoformat(),
     }
+
+
+def predict_lmp_per_horizon(zone: str, per_zone_lmp: dict, system_lmp: 'float | None' = None) -> dict:
+    """For a given zone, return predicted LMP at each of the 4 horizons.
+
+    Uses the most recent real per-zone LMP if available, else falls back to
+    the system-wide LMP. Until the API exposes per-horizon model calls,
+    we use the same anchor for all 4 horizons (best estimate at all
+    horizons given current data).
+
+    Args:
+        zone: 'NP15' | 'SP15' | 'ZP26'
+        per_zone_lmp: dict from fetch_caiso_per_zone_lmp() — has 'latest' per zone
+        system_lmp: fallback LMP ($/MWh) if per-zone data is unavailable
+
+    Returns: {'30m': float, '1h': float, '2h': float, '4h': float} (all in $/MWh)
+    """
+    zone_data = per_zone_lmp.get(zone, {})
+    latest = zone_data.get('latest', {})
+    lmp_now = latest.get('lmp')
+    if lmp_now is None:
+        lmp_now = system_lmp  # fallback to system-wide
+    if lmp_now is None:
+        return {'30m': None, '1h': None, '2h': None, '4h': None}
+    return {'30m': lmp_now, '1h': lmp_now, '2h': lmp_now, '4h': lmp_now}
 
 
 # === Main fetch cycle ===
@@ -412,19 +473,22 @@ def fetch_cycle(redis_client, dc_sites: pd.DataFrame) -> dict:
     cycle_start = datetime.now(timezone.utc)
     logger.info("=== Live fetch cycle started ===")
 
-    # 1. Get system-wide data
+    # 1. Get system-wide data (best effort — if it fails, fall back to 0 load)
     iso_data = fetch_caiso_load_fuelmix()
     if iso_data.empty:
-        logger.error("  No CAISO data; skipping cycle")
-        return {'status': 'no_data', 'cycle_at': cycle_start.isoformat()}
+        logger.warning("  CAISO system load/fuelmix unreachable; using defaults")
+        load_mw = 0
+        fuel_mix = {}
+        row = None
+    else:
+        row = iso_data.iloc[0]
+        load_mw = row['Load_MW']
+        fuel_mix = {k.replace('_MW', ''): v for k, v in row.items() if k.endswith('_MW')}
 
-    row = iso_data.iloc[0]
-    load_mw = row['Load_MW']
-    fuel_mix = {k.replace('_MW', ''): v for k, v in row.items() if k.endswith('_MW')}
-
-    # 2. Predict LMP from current state
+    # 2. Predict LMP from current state (use load_mw=0 if no data — model still gives
+    # a reasonable default).
     predicted_lmp = predict_lmp_from_state(load_mw, fuel_mix)
-    logger.info(f"  Predicted LMP: ${predicted_lmp:.2f}/MWh")
+    logger.info(f"  System LMP: ${predicted_lmp:.2f}/MWh (load={load_mw}MW)")
 
     # 2b. Fetch per-zone LMP from CAISO OASIS via gridstatus (D8 full)
     # Returns real per-zone LMPs (REAL_TIME_5_MIN market, ~5-15min lag).
@@ -483,7 +547,7 @@ def fetch_cycle(redis_client, dc_sites: pd.DataFrame) -> dict:
         zone_lmp = per_zone_lmp.get(zone, {}).get('latest', {}).get('lmp', predicted_lmp)
         zone_features = {
             'zone': zone,
-            'time': row['Time'],
+            'time': row['Time'] if row is not None else None,
             'load_mw': load_mw,
             'fuel_mix': fuel_mix,
             'predicted_lmp': zone_lmp,
@@ -494,14 +558,13 @@ def fetch_cycle(redis_client, dc_sites: pd.DataFrame) -> dict:
         cache_features(redis_client, zone, zone_features)
         cache_summary['zones'][zone] = 'ok'
 
-    # 5. Compute per-DC advisories
+    # 5. Compute per-DC advisories (per-horizon)
     if not dc_sites.empty:
         for _, dc in dc_sites.iterrows():
             zone = dc.get('caiso_zone')
-            zone_features = {
-                'predicted_lmp': predicted_lmp,
-            }
-            advisory = compute_dc_advisory(dc, zone_features)
+            # Per-horizon LMP for this DC's zone
+            zone_horizons = predict_lmp_per_horizon(zone, per_zone_lmp, predicted_lmp)
+            advisory = compute_dc_advisory(dc, zone_horizons)
             cache_dc_advisory(redis_client, dc['dc_id'], advisory)
         cache_summary['dcs'] = len(dc_sites)
 

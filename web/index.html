@@ -153,6 +153,13 @@
   </div>
 
   <div class="chart-container">
+    <h3>Top 10 stressed data centers (worst advisory across 30m/1h/2h/4h)</h3>
+    <div id="dcList" style="max-height: 360px; overflow-y: auto;">
+      <!-- Rendered by JS — shows top 10 most-stressed DCs with all 4 horizons -->
+    </div>
+  </div>
+
+  <div class="chart-container">
     <h3>LMP history (last 24h, real-time from CAISO OASIS) + 5-min forward forecast</h3>
     <div id="lmpChart" style="width: 100%; height: 320px;"></div>
   </div>
@@ -241,6 +248,73 @@
       Plotly.newPlot('map', data, layout, config);
     }
 
+    // ===== Top stressed DCs =====
+    async function renderTopStressedDCs() {
+      const { sites } = await fetchJSON('/sites');
+      // Fetch first 10 DCs (or all, then sort by worst horizon)
+      const SAMPLE = 30;  // fetch 30, sort, take top 10
+      const fetches = await Promise.all(
+        sites.slice(0, SAMPLE).map(s =>
+          fetchJSON(`/dc/${s.dc_id}/forecast`).catch(() => null)
+        )
+      );
+      const severities = { ok: 0, unknown: 1, watch: 2, defer: 3, pause: 4 };
+      const advColor = { ok: 'var(--accent-ok)', watch: 'var(--accent-warn)', defer: 'var(--accent-pause)', pause: 'var(--accent-pause)' };
+      const rows = fetches
+        .filter(d => d && d.all_horizons)
+        .map(d => {
+          // Find worst horizon
+          let worst = 'ok';
+          for (const h of Object.keys(d.all_horizons)) {
+            const a = d.all_horizons[h].advisory;
+            if (severities[a] > severities[worst]) worst = a;
+          }
+          return { dc: d, worst };
+        })
+        .filter(r => r.worst !== 'ok' && r.worst !== 'unknown')  // hide OK ones
+        .sort((a, b) => severities[b.worst] - severities[a.worst])
+        .slice(0, 10);
+      const el = document.getElementById('dcList');
+      if (rows.length === 0) {
+        el.innerHTML = '<p style="color: var(--muted); padding: 8px;">All sampled DCs are in OK advisory across all 4 horizons.</p>';
+        return;
+      }
+      el.innerHTML = `
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--muted);">
+              <th style="padding: 6px;">DC</th>
+              <th style="padding: 6px;">Zone</th>
+              <th style="padding: 6px;">MW</th>
+              <th style="padding: 6px; text-align: center;">30m</th>
+              <th style="padding: 6px; text-align: center;">1h</th>
+              <th style="padding: 6px; text-align: center;">2h</th>
+              <th style="padding: 6px; text-align: center;">4h</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => {
+              const d = r.dc;
+              const h = d.all_horizons;
+              return `
+                <tr style="border-bottom: 1px solid var(--border);">
+                  <td style="padding: 6px;"><b>${d.name}</b><br><span style="color: var(--muted); font-size: 11px;">${d.dc_id} · ${d.operator || '—'}</span></td>
+                  <td style="padding: 6px;">${d.zone || '—'}</td>
+                  <td style="padding: 6px;">${(d.mw_capacity || 0).toFixed(0)}</td>
+                  ${['30m','1h','2h','4h'].map(k => {
+                    const adv = h[k]?.advisory || 'unknown';
+                    const lmp = h[k]?.lmp_dollar_estimate;
+                    const lmpStr = lmp != null ? `$${lmp.toFixed(0)}` : '—';
+                    return `<td style="padding: 6px; text-align: center; color: ${advColor[adv] || 'var(--muted)'};"><b>${adv}</b><br><span style="font-size: 10px;">${lmpStr}</span></td>`;
+                  }).join('')}
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
     // ===== LMP history chart =====
     async function renderLMPChart() {
       const { zones, last_updated } = await fetchJSON('/zones/history');
@@ -314,6 +388,7 @@
 
         // Render charts
         await renderMap();
+        await renderTopStressedDCs();
         await renderLMPChart();
       } catch (e) {
         console.error('refresh failed:', e);
