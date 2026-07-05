@@ -267,7 +267,7 @@ docker compose down
 9. **Alpine `wget` resolves `localhost` to `::1` first**: nginx healthchecks using `http://localhost/...` may get "Connection refused" even when the proxy is fine. Use `http://127.0.0.1/...` instead.
 10. **Nginx image's `default.conf` and our `nginx.conf` both listen on :80**: mount `./nginx/conf.d/` over `/etc/nginx/conf.d/` to suppress the duplicate `server{}` block.
 11. **Volume-mounted files in the API container are owned by host user, not `app` (uid 1000)**: `chown -R 1000:1000 <dir>` so the app user can read them. Otherwise `PermissionError` on `os.stat()` for static files.
-
+12. **Image HEALTHCHECK probes :8000** (baked into Dockerfile). For services that DON'T run uvicorn (e.g. trainer with `sleep infinity`), override the healthcheck in compose — see trainer block for the Redis-ping pattern.
 ---
 
 ## MLOPs Boundary (your earlier question)
