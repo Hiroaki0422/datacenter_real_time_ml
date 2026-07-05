@@ -239,16 +239,16 @@ docker compose down
 - Add to docker-compose as a profile="cron" service with hourly schedule
 **Result**: Auto-retrain triggers when drift detected
 
-### 3. **Frontend (D11)**
-**Why**: API has data, no visualization
-**How**:
-- `web/index.html` + JS + Plotly.js
-- Map: 227 CA DC sites via Leaflet, colored by zone status, sized by MW
-- Time series: LMP history + forecast band (uses /forecast endpoint)
-- Advisory card: current grid state (clean/warn/dirty)
-- Host via FastAPI static files
+### 3. ~~**Frontend (D11)** — Plotly.js SPA~~ — DONE 2026-07-05 (3c1aa21)
+   - web/index.html: single file, no build step, Plotly.js via CDN
+   - Map: 227 red dots (Plotly scattermapbox, carto-darkmatter)
+   - 3 advisory cards (one per zone): current LMP, 5-min forecast, advisory tag
+   - 24h LMP history time series (3 zones, 3 colored lines)
+   - Auto-refresh every 60s
+   - New endpoints: /sites, /zones/history
+   - Served via FastAPI StaticFiles mount at /
 
-### 4. **Actual canary (D9)**
+### 4. **Drift detector (D10)**
 **Why**: nginx canary is location-based, not weight-based
 **How**: Run two API containers with different MODEL_VERSION env vars, use upstream weights
 
@@ -265,7 +265,9 @@ docker compose down
 7. **Volume mount permissions**: artifacts dir must be owned by uid 1000 (app user in container)
 8. **For each new code file, rebuild the image**: `docker build -t dc_real_time_api:v0.1 .`
 9. **Image HEALTHCHECK probes :8000** (baked into Dockerfile). For services that DON'T run uvicorn (e.g. trainer with `sleep infinity`), override the healthcheck in compose — see trainer block for the Redis-ping pattern.
-10. **Alpine `wget` resolves `localhost` to `::1` first**: nginx healthchecks using `http://localhost/...` may get "Connection refused" even when the proxy is fine. Use `http://127.0.0.1/...` instead.
+9. **Alpine `wget` resolves `localhost` to `::1` first**: nginx healthchecks using `http://localhost/...` may get "Connection refused" even when the proxy is fine. Use `http://127.0.0.1/...` instead.
+10. **Nginx image's `default.conf` and our `nginx.conf` both listen on :80**: mount `./nginx/conf.d/` over `/etc/nginx/conf.d/` to suppress the duplicate `server{}` block.
+11. **Volume-mounted files in the API container are owned by host user, not `app` (uid 1000)**: `chown -R 1000:1000 <dir>` so the app user can read them. Otherwise `PermissionError` on `os.stat()` for static files.
 
 ---
 
@@ -305,7 +307,7 @@ docker compose down
 - [x] D8 full: per-zone LMP history + 22 LMP features at inference (c7f3a36)
 - [ ] D9: actual weight-based canary
 - [ ] D10: drift detector producing artifacts/drift_log.json
-- [ ] D11: frontend HTML/JS
+- [x] D11: frontend HTML/JS (3c1aa21)
 - [ ] D12: E2E test (cron + retrain + canary)
 
 ---
