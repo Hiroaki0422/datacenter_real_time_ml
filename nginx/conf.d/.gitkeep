@@ -1,0 +1,4 @@
+# Empty by design. The nginx image's default.conf has a server{} block
+# listening on :80 that conflicts with our nginx.conf. We mount this
+# empty directory over /etc/nginx/conf.d/ in the container to suppress
+# the default server block.

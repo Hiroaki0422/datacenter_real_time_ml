@@ -229,6 +229,134 @@ def _rough_lmp_estimate(load_mw: float, fuel_mix: dict) -> float:
     return max(5.0, base * (1 + 0.5 * load_factor - 0.3 * solar_supply))
 
 
+# === Per-zone LMP fetch (D8 full) ===
+
+# CAISO trading hub IDs — same as used during v0.1 training (see
+# notebooks/colab_handoff/01_caiso_1y_backfill.md).
+ZONE_TO_LOCATION = {
+    'NP15': 'TH_NP15_GEN-APND',
+    'SP15': 'TH_SP15_GEN-APND',
+    'ZP26': 'TH_ZP26_GEN-APND',
+}
+
+# Per-zone LMP history TTL in Redis: 25h (24h of history + 1h buffer).
+# Each entry is one (timestamp, lmp) pair; we keep ~288 per zone (5-min × 24h).
+LMP_HISTORY_TTL_SEC = 25 * 3600
+
+
+def fetch_caiso_per_zone_lmp() -> dict:
+    """Fetch today's per-zone LMP intervals from CAISO OASIS via gridstatus.
+
+    Real OASIS LMP has 1-2h lag, but the REAL_TIME_5_MIN market is
+    available within ~5-15 min. For a 5-min fetcher cycle, this gives
+    us per-zone LMP that's at most 15 min stale — good enough for
+    rolling stats over 60m/4h/24h windows.
+
+    Returns: {zone: {latest: {lmp, energy, ...}, intervals: [{time, lmp}, ...]}}
+    - latest is the most recent interval (used as "current LMP" for that zone)
+    - intervals is the full day (used to backfill history on first run)
+    Empty dict on failure.
+    """
+    try:
+        import gridstatus
+    except ImportError:
+        logger.warning("  gridstatus not installed; per-zone LMP unavailable")
+        return {}
+
+    try:
+        caiso = gridstatus.CAISO()
+        # gridstatus calls OASIS with date='today' and returns the full day's
+        # data. We take the most recent interval per zone as the "current" LMP,
+        # and keep all intervals for history backfill.
+        df = caiso.get_lmp(date='today', market='REAL_TIME_5_MIN')
+        if df is None or df.empty:
+            logger.warning("  gridstatus returned empty per-zone LMP")
+            return {}
+        if 'Location' not in df.columns or 'Time' not in df.columns or 'LMP' not in df.columns:
+            logger.warning(f"  Unexpected gridstatus columns: {df.columns.tolist()[:8]}")
+            return {}
+
+        # Build location -> zone map (reverse of ZONE_TO_LOCATION)
+        loc_to_zone = {v: k for k, v in ZONE_TO_LOCATION.items()}
+
+        # Filter to only the 3 trading hubs we care about
+        df = df[df['Location'].isin(ZONE_TO_LOCATION.values())].copy()
+        if df.empty:
+            logger.warning("  No rows for our 3 zones in gridstatus response")
+            return {}
+
+        df = df.sort_values('Time')
+
+        result = {}
+        for zone, location in ZONE_TO_LOCATION.items():
+            zone_df = df[df['Location'] == location]
+            if zone_df.empty:
+                continue
+            latest = zone_df.iloc[-1]
+            intervals = [
+                {
+                    'time': row['Time'],
+                    'lmp': float(row['LMP']),
+                }
+                for _, row in zone_df.iterrows()
+            ]
+            result[zone] = {
+                'latest': {
+                    'lmp': float(latest['LMP']),
+                    'energy': float(latest.get('Energy', 0) or 0),
+                    'congestion': float(latest.get('Congestion', 0) or 0),
+                    'loss': float(latest.get('Loss', 0) or 0),
+                    'ghg': float(latest.get('GHG', 0) or 0),
+                    'time': latest['Time'].isoformat() if hasattr(latest['Time'], 'isoformat') else str(latest['Time']),
+                },
+                'intervals': intervals,
+            }
+        return result
+    except Exception as e:
+        logger.warning(f"  Per-zone LMP fetch failed: {e}")
+        return {}
+
+
+def append_lmp_history(redis_client, zone: str, lmp: float, ts_unix: float) -> None:
+    """Append a (timestamp, lmp) pair to the per-zone LMP history sorted set.
+
+    Key: features:zone:{zone}:lmp_history
+    Score: unix timestamp
+    Value: JSON {t: iso_time, lmp: float}
+
+    Old entries (>25h) are removed via ZREMRANGEBYSCORE.
+    """
+    import time as _time
+    key = f"features:zone:{zone}:lmp_history"
+    iso_time = datetime.fromtimestamp(ts_unix, tz=timezone.utc).isoformat()
+    value = json.dumps({"t": iso_time, "lmp": lmp})
+    cutoff = ts_unix - LMP_HISTORY_TTL_SEC
+    pipe = redis_client.pipeline()
+    pipe.zremrangebyscore(key, "-inf", cutoff)
+    pipe.zadd(key, {value: ts_unix})
+    pipe.expire(key, LMP_HISTORY_TTL_SEC)
+    pipe.execute()
+
+
+def read_lmp_history(redis_client, zone: str, max_age_sec: int = 24 * 3600) -> list:
+    """Read per-zone LMP history from Redis as a list of {t, lmp} dicts.
+
+    Returns entries newer than (now - max_age_sec), sorted by timestamp ascending.
+    Empty list if no history (caller should fall back to defaults).
+    """
+    import time as _time
+    key = f"features:zone:{zone}:lmp_history"
+    cutoff = _time.time() - max_age_sec
+    raw = redis_client.zrangebyscore(key, cutoff, "+inf")
+    out = []
+    for entry in raw:
+        try:
+            out.append(json.loads(entry))
+        except (json.JSONDecodeError, TypeError):
+            continue
+    return out
+
+
 # === Redis cache ===
 
 def get_redis_client():
@@ -298,6 +426,43 @@ def fetch_cycle(redis_client, dc_sites: pd.DataFrame) -> dict:
     predicted_lmp = predict_lmp_from_state(load_mw, fuel_mix)
     logger.info(f"  Predicted LMP: ${predicted_lmp:.2f}/MWh")
 
+    # 2b. Fetch per-zone LMP from CAISO OASIS via gridstatus (D8 full)
+    # Returns real per-zone LMPs (REAL_TIME_5_MIN market, ~5-15min lag).
+    # These are used as the "current LMP" per zone, and appended to a
+    # rolling history in Redis for the 22 LMP-derived features the
+    # model was trained on.
+    import time as _time
+    cycle_ts = _time.time()
+    per_zone_lmp = fetch_caiso_per_zone_lmp()
+    if per_zone_lmp:
+        n_intervals_total = 0
+        for zone, lmp_data in per_zone_lmp.items():
+            # Append all of today's intervals (backfills history fast on first run)
+            for interval in lmp_data.get('intervals', []):
+                ts = interval['time']
+                # Convert pandas Timestamp to unix
+                if hasattr(ts, 'timestamp'):
+                    ts_unix = ts.timestamp()
+                else:
+                    # Parse the ISO string if needed
+                    from datetime import datetime as _dt
+                    if isinstance(ts, str):
+                        ts_unix = _dt.fromisoformat(ts.replace('Z', '+00:00')).timestamp()
+                    else:
+                        ts_unix = cycle_ts
+                append_lmp_history(redis_client, zone, interval['lmp'], ts_unix)
+                n_intervals_total += 1
+        latest = per_zone_lmp.get('NP15', {}).get('latest', {})
+        logger.info(
+            f"  Per-zone LMP: "
+            f"NP15=${per_zone_lmp.get('NP15', {}).get('latest', {}).get('lmp', 0):.2f} "
+            f"SP15=${per_zone_lmp.get('SP15', {}).get('latest', {}).get('lmp', 0):.2f} "
+            f"ZP26=${per_zone_lmp.get('ZP26', {}).get('latest', {}).get('lmp', 0):.2f} "
+            f"({n_intervals_total} intervals written to history)"
+        )
+    else:
+        logger.warning("  Per-zone LMP fetch failed; history not updated this cycle")
+
     # 3. Get weather (per-zone centroid for now)
     zone_centroids = {
         'NP15': (38.5, -121.5),  # Sacramento
@@ -313,12 +478,16 @@ def fetch_cycle(redis_client, dc_sites: pd.DataFrame) -> dict:
     # 4. Build per-zone features
     cache_summary = {'zones': {}, 'dcs': 0}
     for zone in ['NP15', 'SP15', 'ZP26']:
+        # Use the per-zone LMP if we have it (D8 full); fall back to the
+        # system-wide predicted_lmp so the cache is never empty.
+        zone_lmp = per_zone_lmp.get(zone, {}).get('latest', {}).get('lmp', predicted_lmp)
         zone_features = {
             'zone': zone,
             'time': row['Time'],
             'load_mw': load_mw,
             'fuel_mix': fuel_mix,
-            'predicted_lmp': predicted_lmp,
+            'predicted_lmp': zone_lmp,
+            'predicted_lmp_source': 'oasis_rt5min' if per_zone_lmp.get(zone) else 'model_fallback',
             'weather': zone_weather.get(zone, {}),
             'fetched_at': datetime.now(timezone.utc).isoformat(),
         }

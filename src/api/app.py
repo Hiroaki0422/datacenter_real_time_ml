@@ -120,6 +120,7 @@ def build_inference_features(
     day_of_week: int,
     month: int,
     is_weekend: bool,
+    lmp_features: dict = None,
 ) -> np.ndarray:
     """Build a single-row feature vector for inference.
 
@@ -181,13 +182,11 @@ def build_inference_features(
         if FEATURE_COLS and feat_col in FEATURE_COLS:
             defaults[feat_col] = fuel_mix.get(fuel_name, 0) or fuel_mix.get(fuel_name + '_MW', 0)
 
-    # Weather features
-    if weather:
-        if FEATURE_COLS and 'lmp_slope_60m' in FEATURE_COLS:
-            defaults['lmp_slope_60m'] = 0
-        # Open-Meteo doesn't provide wet_bulb; use temp as proxy
-        if FEATURE_COLS and 'lmp_range_4h' in FEATURE_COLS:
-            defaults['lmp_range_4h'] = 0
+    # LMP-derived features (22 features, computed from Redis history — D8 full)
+    if lmp_features:
+        for k, v in lmp_features.items():
+            if FEATURE_COLS and k in FEATURE_COLS:
+                defaults[k] = v
 
     # Assemble in column order
     if FEATURE_COLS is None:
@@ -206,6 +205,174 @@ def zone_to_dummies(zone: str) -> dict:
         'zone_SP15': int(zone == 'SP15'),
         'zone_ZP26': int(zone == 'ZP26'),
     }
+
+
+def get_redis_history(zone: str) -> list:
+    """Read per-zone LMP history from Redis (sorted set).
+
+    Returns a list of {t: iso_str, lmp: float} dicts, sorted by time ascending.
+    Empty list on any failure.
+    """
+    try:
+        import redis
+        r = redis.from_url(os.environ.get('REDIS_URL', 'redis://redis:6379'),
+                          decode_responses=True, socket_connect_timeout=2)
+        key = f"features:zone:{zone}:lmp_history"
+        raw = r.zrange(key, 0, -1)  # all entries, oldest first
+        out = []
+        for entry in raw:
+            try:
+                out.append(json.loads(entry))
+            except (json.JSONDecodeError, TypeError):
+                continue
+        return out
+    except Exception as e:
+        logger.warning(f"  Failed to read LMP history for {zone}: {e}")
+        return []
+
+
+def compute_lmp_features(zone: str, current_lmp: float) -> dict:
+    """Compute the 22 LMP-derived features the model expects.
+
+    Mirrors add_lmp_features() + add_cross_zone_features() from training
+    (src/features/build_features.py). Returns a dict mapping feature name
+    to value, suitable for merging into the inference feature vector.
+
+    Per-zone features (15):
+      lmp_mean_60m, lmp_std_60m, lmp_mean_4h, lmp_std_4h,
+      lmp_mean_24h, lmp_std_24h, lmp_max_24h, lmp_min_24h,
+      lmp_lag_1, lmp_lag_12, lmp_lag_48,
+      lmp_slope_60m, lmp_pct_change_5m, lmp_pct_change_60m, lmp_range_4h
+
+    Cross-zone features (6):
+      lmp_spread_np_sp, lmp_spread_np_zp, lmp_spread_sp_zp,
+      lmp_max_across_zones, lmp_min_across_zones, lmp_mean_across_zones,
+      lmp_max_across_zones_60m
+    """
+    import math
+    import numpy as np
+    from datetime import datetime as _dt
+
+    # Read history for this zone + all other zones (for cross-zone)
+    zone_hist = get_redis_history(zone)
+    all_zone_hists = {z: get_redis_history(z) for z in ['NP15', 'SP15', 'ZP26']}
+
+    # Parse timestamps once
+    def parse_ts(entries):
+        return [(entry['lmp'], _dt.fromisoformat(entry['t'].replace('Z', '+00:00')))
+                for entry in entries if 'lmp' in entry and 't' in entry]
+
+    parsed = parse_ts(zone_hist)
+    if not parsed:
+        # No history — return zeros for all LMP features
+        return {col: 0.0 for col in [
+            'lmp_mean_60m', 'lmp_std_60m', 'lmp_mean_4h', 'lmp_std_4h',
+            'lmp_mean_24h', 'lmp_std_24h', 'lmp_max_24h', 'lmp_min_24h',
+            'lmp_lag_1', 'lmp_lag_12', 'lmp_lag_48',
+            'lmp_slope_60m', 'lmp_pct_change_5m', 'lmp_pct_change_60m', 'lmp_range_4h',
+            'lmp_spread_np_sp', 'lmp_spread_np_zp', 'lmp_spread_sp_zp',
+            'lmp_max_across_zones', 'lmp_min_across_zones', 'lmp_mean_across_zones',
+            'lmp_max_across_zones_60m',
+        ]}
+
+    # Convert to numpy arrays
+    lmps = np.array([p[0] for p in parsed], dtype=np.float64)
+    times = [p[1] for p in parsed]
+    now = _dt.now(_dt.now().astimezone().tzinfo)  # local-aware "now"
+
+    # Per-zone features
+    def in_window(window_sec, until_idx=None):
+        """Get LMPs within the last window_sec seconds, up to index until_idx."""
+        end = times[until_idx] if until_idx is not None else times[-1]
+        return np.array([l for l, t in zip(lmps, times)
+                         if (end - t).total_seconds() <= window_sec], dtype=np.float64)
+
+    last_60m = in_window(60 * 60)
+    last_4h = in_window(4 * 3600)
+    last_24h = in_window(24 * 3600)
+
+    out = {}
+
+    # Rolling means/stds
+    if len(last_60m) > 0:
+        out['lmp_mean_60m'] = float(np.mean(last_60m))
+        out['lmp_std_60m'] = float(np.std(last_60m)) if len(last_60m) > 1 else 0.0
+    else:
+        out['lmp_mean_60m'] = float(lmps[-1])
+        out['lmp_std_60m'] = 0.0
+
+    if len(last_4h) > 0:
+        out['lmp_mean_4h'] = float(np.mean(last_4h))
+        out['lmp_std_4h'] = float(np.std(last_4h)) if len(last_4h) > 1 else 0.0
+    else:
+        out['lmp_mean_4h'] = float(lmps[-1])
+        out['lmp_std_4h'] = 0.0
+
+    if len(last_24h) > 0:
+        out['lmp_mean_24h'] = float(np.mean(last_24h))
+        out['lmp_std_24h'] = float(np.std(last_24h)) if len(last_24h) > 1 else 0.0
+        out['lmp_max_24h'] = float(np.max(last_24h))
+        out['lmp_min_24h'] = float(np.min(last_24h))
+    else:
+        out['lmp_mean_24h'] = float(lmps[-1])
+        out['lmp_std_24h'] = 0.0
+        out['lmp_max_24h'] = float(lmps[-1])
+        out['lmp_min_24h'] = float(lmps[-1])
+
+    # Lags (5min, 1h, 4h ago)
+    out['lmp_lag_1'] = float(lmps[-1]) if len(lmps) >= 1 else float(current_lmp)
+    out['lmp_lag_12'] = float(lmps[-12]) if len(lmps) >= 12 else float(lmps[0])
+    out['lmp_lag_48'] = float(lmps[-48]) if len(lmps) >= 48 else float(lmps[0])
+
+    # Slope: linear regression of LMP on time in last 60min
+    if len(last_60m) >= 2:
+        x = np.arange(len(last_60m), dtype=np.float64)
+        y = last_60m
+        # slope = covariance(x,y) / variance(x)
+        x_mean = np.mean(x)
+        y_mean = np.mean(y)
+        cov = np.mean((x - x_mean) * (y - y_mean))
+        var = np.mean((x - x_mean) ** 2)
+        out['lmp_slope_60m'] = float(cov / var) if var > 0 else 0.0
+    else:
+        out['lmp_slope_60m'] = 0.0
+
+    # Pct changes (5min ago and 60min ago)
+    if len(lmps) >= 2:
+        out['lmp_pct_change_5m'] = float((lmps[-1] - lmps[-2]) / lmps[-2]) if lmps[-2] != 0 else 0.0
+    else:
+        out['lmp_pct_change_5m'] = 0.0
+    if len(lmps) >= 13:
+        out['lmp_pct_change_60m'] = float((lmps[-1] - lmps[-13]) / lmps[-13]) if lmps[-13] != 0 else 0.0
+    else:
+        out['lmp_pct_change_60m'] = 0.0
+
+    # Range over last 4h
+    if len(last_4h) > 0:
+        out['lmp_range_4h'] = float(np.max(last_4h) - np.min(last_4h))
+    else:
+        out['lmp_range_4h'] = 0.0
+
+    # Cross-zone features (latest LMP from each zone's history)
+    latest_per_zone = {}
+    for z, hist in all_zone_hists.items():
+        if hist:
+            latest_per_zone[z] = float(hist[-1]['lmp'])
+        else:
+            latest_per_zone[z] = current_lmp  # fallback to this zone's current
+
+    n_latest = [latest_per_zone.get('NP15', 0), latest_per_zone.get('SP15', 0), latest_per_zone.get('ZP26', 0)]
+    out['lmp_spread_np_sp'] = latest_per_zone.get('NP15', 0) - latest_per_zone.get('SP15', 0)
+    out['lmp_spread_np_zp'] = latest_per_zone.get('NP15', 0) - latest_per_zone.get('ZP26', 0)
+    out['lmp_spread_sp_zp'] = latest_per_zone.get('SP15', 0) - latest_per_zone.get('ZP26', 0)
+    out['lmp_max_across_zones'] = float(max(n_latest))
+    out['lmp_min_across_zones'] = float(min(n_latest))
+    out['lmp_mean_across_zones'] = float(np.mean(n_latest))
+
+    # Max across zones in last 60min — use this zone's history's max
+    out['lmp_max_across_zones_60m'] = out['lmp_max_across_zones']  # approximation
+
+    return out
 
 
 def advisory_from_lmp(lmp: float) -> str:
@@ -258,6 +425,8 @@ def forecast(zone: str):
         raise HTTPException(status_code=404, detail=f"Unknown zone: {zone}")
 
     # Try to get live data from Redis
+    cached = None
+    data = {}
     try:
         import redis
         r = redis.from_url(os.environ.get('REDIS_URL', 'redis://redis:6379'),
@@ -277,10 +446,14 @@ def forecast(zone: str):
         load_mw, fuel_mix, weather = 25000, {}, {}
 
     now = datetime.now()
+    # Compute LMP features from Redis history (D8 full)
+    current_lmp = float(data.get('predicted_lmp', 25) or 25) if cached else 25.0
+    lmp_features = compute_lmp_features(zone, current_lmp)
     features = build_inference_features(
         zone=zone, load_mw=load_mw, fuel_mix=fuel_mix, weather=weather,
         hour=now.hour, day_of_week=now.weekday(),
         month=now.month, is_weekend=now.weekday() >= 5,
+        lmp_features=lmp_features,
     )
     zone_dummies = zone_to_dummies(zone)
 
