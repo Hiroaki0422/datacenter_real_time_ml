@@ -1,60 +1,275 @@
 # dc_real_time — Spatial-Temporal Carbon & Price Forecasting for Data Center Infrastructure
 
-> **One-line thesis**: Predict 1–4 hour ahead wholesale electricity price surges and carbon intensity in CAISO, mapped onto California data center sites from the v1 dataset, to power a public "carbon-aware compute scheduling" advisory.
+> **One-line thesis**: Predict 30-minute to 4-hour ahead wholesale electricity price and carbon intensity in CAISO, mapped onto California data center sites, to power a public "carbon-aware compute scheduling" advisory.
 
-## Status
-- **Phase**: 1 (data exploration) ✅ DONE — 1y backfill received from Colab
-- **Started**: 2026-07-04
-- **Owner**: Hiroaki
-- **License**: TBD (probably MIT to match v1)
+> **Status**: Phase 4 (D1–D12) — production stack live, multi-horizon ML models trained and auto-promoting, frontend dashboard serving at `http://localhost/`.
 
-## Quick Links
-- [Project Summary](docs/PROJECT_SUMMARY.md) — full spec, problem, architecture
-- [Spike Classifier Design](docs/SPIKE_CLASSIFIER.md) — multi-class label scheme
-- [Phase Plan](docs/PHASE_PLAN.md) — 6-week milestone breakdown
-- [Data Sources](docs/DATA_SOURCES.md) — what we pull, size, auth, access notes
-- [Decision Log](docs/DECISIONS.md) — locked decisions, in-flight questions
-- [Phase 1 Findings](docs/PHASE1_FINDINGS.md) — empirical EDA results (spike class frequencies, GHG semantics, etc.)
+## What it does
 
-## Project Structure
+The system ingests live data from three sources, trains multi-horizon XGBoost models, and serves a public dashboard that tells data center operators and the public:
+
+- **For each of 3 CAISO zones** (NP15, SP15, ZP26): predicted LMP and carbon intensity at 30m / 1h / 2h / 4h horizons
+- **For each of 227 California data centers**: worst-case advisory across all 4 horizons, with per-horizon breakdown
+- **For all 3 zones**: 24h (or windowed) LMP history from CAISO OASIS
+- **Auto-retrains** when new carbon data becomes available, when drift is detected, or when the champion ages past 7 days
+
+Advisories follow carbon-aware-compute etiquette: **ok / watch / defer / pause** based on LMP thresholds (>$30/$50/$100/MWh).
+
+## Quick start
+
+### Prerequisites
+
+- Linux with Docker + Docker Compose v2 (`docker compose`, not `docker-compose`)
+- 4 vCPU, 8 GB RAM, 50 GB disk (VPS-class)
+- Port 80 (nginx) and 6379 (redis) available
+
+### Launch
+
+```bash
+git clone git@github.com:Hiroaki0422/datacenter_real_time_ml.git
+cd datacenter_real_time_ml
+
+# Start the full stack
+docker compose up -d
+
+# Start the data fetcher (5-min cycle, populates Redis with live CAISO data)
+docker compose --profile cron up -d trainer
+docker exec dc_real_time_trainer python -m src.data.live_fetcher
+
+# Open the dashboard
+open http://localhost/
+```
+
+### Verify it's working
+
+```bash
+# All services healthy
+docker compose ps
+
+# Forecast endpoint returns live LMP
+curl 'http://localhost/forecast/NP15?horizon=1h' | python3 -m json.tool
+
+# Per-DC advisory with 4 horizons
+curl 'http://localhost/dc/DC-00088/forecast?horizon=4h' | python3 -m json.tool
+
+# LMP history (last 12 entries per zone)
+curl 'http://localhost/zones/history?limit=12' | python3 -m json.tool
+
+# All 227 DC sites
+curl 'http://localhost/sites' | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{d[\"count\"]} sites')"
+```
+
+Expected output: 4 services `healthy`, forecast returns LMP in the $20–$60 range depending on grid conditions.
+
+### Stop
+
+```bash
+docker compose down
+```
+
+## Architecture
+
+```
+                  :80                          (nginx: blue/green + canary routes)
+                   ↓
+              ┌──────────┐
+              │  Nginx   │
+              └────┬─────┘
+                   ↓
+              ┌──────────┐
+              │   API    │  FastAPI, loads models/champion/*.json (8 files: 4 horizons × 2 targets)
+              │  :8000   │  GET /forecast, /dc/{id}/forecast, /sites, /zones/history, /admin/reload
+              └────┬─────┘
+                   ↓
+         ┌─────────┴──────────┐
+         ↓                    ↓
+    ┌─────────┐         ┌──────────┐
+    │  Redis  │ ←───────│ Trainer  │  python -m src.data.live_fetcher (every 5 min)
+    │  :6379  │ fetcher │          │  python -m src.models.retrain_scheduler (drift/queue/age)
+    └─────────┘         └──────────┘
+         ↑                       ↓
+   features:zone:{Z}:now        python -m src.models.train_lmp_multi_horizon --version vN
+   features:dc:{id}:now         python -m src.models.train_carbon_multi_horizon --version vN
+   features:zone:{Z}:lmp_history
+   meta:last_fetch
+   meta:carbon_retrain_queued
+   meta:last_carbon_data_date
+```
+
+**MLOPs boundary**: trainer runs OUTSIDE the API (in a separate service). Model swap is INSIDE — atomic symlink `models/champion -> models/{version}` plus `/admin/reload` endpoint.
+
+## Endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /` | Frontend dashboard (Plotly.js SPA) |
+| `GET /healthz` | Liveness check |
+| `GET /readyz` | Readiness check (models loaded) |
+| `GET /model/info` | Currently loaded model paths |
+| `POST /admin/reload` | Reload models from disk (after symlink swap) |
+| `GET /forecast/{zone}?horizon={30m\|1h\|2h\|4h}` | Per-zone forecast at given horizon |
+| `GET /dc/{dc_id}/forecast?horizon={30m\|1h\|2h\|4h}` | Per-DC advisory with all 4 horizons |
+| `GET /sites` | All 227 California DC sites (for the map) |
+| `GET /zones/history?since=ISO&limit=N` | Per-zone LMP history (paginated) |
+
+## Multi-horizon models
+
+Each version directory (e.g. `models/v0.2/`) contains 8 model files:
+
+```
+lmp_ratio_30m.json    lmp_ratio_1h.json    lmp_ratio_2h.json    lmp_ratio_4h.json
+carbon_30m.json       carbon_1h.json       carbon_2h.json       carbon_4h.json
+```
+
+The fetcher writes all 4 horizon values per DC, the API serves any of them via `?horizon=X`. v0.2 is the current champion with val R²:
+
+| Horizon | LMP R² | Carbon R² |
+|---|---|---|
+| 30m | 0.64 | 0.74 |
+| 1h  | 0.56 | 0.71 |
+| 2h  | 0.40 | 0.65 |
+| 4h  | 0.18 | 0.65 |
+
+(5-min forward horizon was the original winner per `docs/DECISIONS.md` D8, but the user spec for averages asked for 30m/1h/2h/4h. The API keeps the 5-min as the "30m" anchor.)
+
+## Retraining
+
+The retrain scheduler checks 3 triggers and retrains if any fires:
+
+1. **Drift**: `artifacts/drift_log.json` reports `max_psi > 0.2` (D10 — drift log producer not yet built, so currently always 0)
+2. **Schedule**: champion is older than 7 days (`RETRAIN_MAX_AGE_DAYS`)
+3. **Carbon window**: fetcher queued a retrain because CAISO published new GHG data
+
+```bash
+# Check if a retrain is needed
+docker exec dc_real_time_trainer python -m src.models.retrain_scheduler --check
+
+# Force a retrain and auto-promote
+docker exec dc_real_time_trainer python -m src.models.retrain_scheduler --train --auto-promote
+```
+
+The fetcher also runs a 5-min cycle and, in normal operation, starts the trainer container for cron-driven fetches via `docker compose --profile cron up -d trainer`.
+
+## Training pipeline
+
+```bash
+# Retrain from scratch (LMP + carbon, all 4 horizons)
+docker exec dc_real_time_trainer bash -c "PROJECT_ROOT=/app MODELS_DIR=/app/models python -m src.models.retrain_scheduler --train"
+
+# Just LMP
+docker exec dc_real_time_trainer python -m src.models.train_lmp_multi_horizon --version v0.3
+
+# Just carbon
+docker exec dc_real_time_trainer python -m src.models.train_carbon_multi_horizon --version v0.3
+```
+
+Training takes ~6 minutes (LMP ~4 min, carbon ~2 min). Output: comparison CSV + plot in `artifacts/`, per-version models in `models/{version}/`.
+
+## Files
 
 ```
 dc_real_time/
-├── README.md                 # this file
-├── docs/                     # design docs, decisions, phase plan
-│   ├── PROJECT_SUMMARY.md
-│   ├── SPIKE_CLASSIFIER.md
-│   ├── PHASE_PLAN.md
-│   ├── DATA_SOURCES.md
-│   └── DECISIONS.md
-├── data/                     # downloaded raw + processed data
-│   ├── raw/                  # immutable downloads (gitignored)
-│   ├── processed/            # cleaned/joined parquet
-│   └── external/             # v1 dataset cross-link (read-only)
-├── notebooks/                # exploratory notebooks + colab handoff
-│   ├── 01_explore_caiso_lmp.ipynb
-│   ├── 02_explore_openmeteo.ipynb
-│   ├── 03_explore_status_feeds.ipynb
-│   └── colab_handoff/        # noteboooks meant for Colab Pro
-├── src/                      # importable library code
-│   ├── data/                 # ingestion modules
-│   ├── features/             # feature engineering
-│   ├── models/               # training + inference
-│   └── api/                  # FastAPI service
-├── scripts/                  # CLI / cron entry points
-├── models/                   # serialized model artifacts (gitignored)
-├── artifacts/                # plots, eval reports, logs
-└── requirements.txt
+├── README.md                          # this file
+├── RESUME.md                          # handoff doc for next session
+├── DOCKER.md                          # Docker usage notes
+├── docker-compose.yml                 # 4 services: api, redis, trainer, nginx
+├── Dockerfile                         # multi-stage, ~30s cold build
+├── nginx/
+│   ├── nginx.conf                     # blue/green + canary routes
+│   └── conf.d/                        # empty (suppresses image's default.conf)
+├── web/
+│   └── index.html                     # Plotly.js SPA, no build step
+├── src/
+│   ├── api/app.py                     # FastAPI: 11 endpoints
+│   ├── data/live_fetcher.py           # 5-min cycle, per-zone LMP, carbon retrain queue
+│   ├── features/build_features.py    # 45 features + targets
+│   └── models/
+│       ├── registry.py                # atomic version + promote
+│       ├── train_lmp_multi_horizon.py # 4-horizon LMP trainer
+│       ├── train_carbon_multi_horizon.py # 4-horizon carbon trainer
+│       └── retrain_scheduler.py       # drift + schedule + carbon queue triggers
+├── data/
+│   ├── processed/                     # 1y CAISO LMP, fuel mix, Open-Meteo (parquet)
+│   └── external/ca_dc_sites.csv       # 227 CA DC sites
+├── models/                            # registry: champion symlink + versioned dirs
+│   ├── registry.json                  # v0.1 (history), v0.2 (champion)
+│   ├── champion -> v0.2
+│   ├── v0.1/  (legacy)
+│   └── v0.2/  # 8 model files
+├── artifacts/                          # eval reports, comparison plots
+├── scripts/
+│   └── backfill_registry_v01.py       # one-time backfill of v0.1 in registry
+└── docs/
+    ├── PROJECT_SUMMARY.md             # full spec
+    ├── DECISIONS.md                   # locked design decisions
+    ├── PHASE_PLAN.md                   # 6-phase milestone plan
+    ├── FEATURE_SCHEMA.md              # 45 features + 3 targets
+    ├── DATA_SOURCES.md                # what we pull and why
+    ├── PHASE1_FINDINGS.md             # EDA results
+    ├── SPIKE_CLASSIFIER.md            # legacy multi-class design (rejected in D1)
+    └── CARBON_DATA_WINDOW.md          # Phase 3 carbon retrain mechanism
 ```
 
-## Relationship To v1 Project
+## Operational notes
 
-This is **v2 of the DC water stress work**, not a standalone project:
+### Logs
 
-| v1 (existing) | v2 (this project) |
+```bash
+# Tail all 4 services
+docker compose logs -f
+
+# Just the fetcher (every 5 min cycle)
+docker logs -f dc_real_time_trainer 2>&1 | grep -E "Live fetch|Per-zone|Carbon retrain"
+```
+
+### Health checks
+
+All services have Docker healthchecks. Run `docker compose ps` to see status. Common statuses:
+- `healthy` — passing healthcheck
+- `unhealthy` — recent healthcheck failed (check logs)
+- `starting` — healthcheck in start_period (e.g. waiting for Redis)
+
+### Data freshness
+
+The 5-min fetcher cycle writes to `meta:last_fetch` (TTL 600s). If this key is missing, the fetcher is stuck or crashed. The frontend's "Last fetch" line shows this.
+
+### Permissions
+
+Volume-mounted files in the API container are owned by the host user, not by `app` (uid 1000). If you see `PermissionError` on logs, run:
+
+```bash
+chown -R 1000:1000 web/ data/processed/
+```
+
+### Nginx upstream IP changes
+
+When the API container restarts, it gets a new IP. Nginx caches the old IP. If you see 502s, run:
+
+```bash
+docker compose restart nginx
+```
+
+(Proper fix: configure nginx with `resolver 127.0.0.11` so it re-resolves on each request. Tracked as a TODO.)
+
+## Remaining work (per RESUME.md)
+
+| Item | Status |
 |---|---|
-| Static WUE × climate × basin stress | + Real-time LMP, carbon, water draw per DC |
-| "This DC uses 1.18 L/kWh, basin is High stress" | "This DC is currently consuming 50 MW on CAISO zone SP15, carbon is 380 gCO2/kWh, basin is at 60% drought severity" |
-| Researcher tool | Public transparency tool + scheduler |
+| D1–D8 (Docker, compose, fetcher, blue/green, real model calls) | ✅ Done |
+| D8 full (per-zone LMP history + 22 LMP features at inference) | ✅ Done |
+| D9 (real weight-based canary) | ❌ Not started — nginx canary is location-based only |
+| D10 (drift detector producing `artifacts/drift_log.json`) | ❌ Not started — retrain scheduler reads the log but no producer exists |
+| D11 (Plotly.js frontend) | ✅ Done |
+| D12 (E2E test: cron + retrain + canary) | ❌ Not started |
+| Multi-horizon training (30m/1h/2h/4h) | ✅ Done |
+| Per-DC multi-horizon advisory | ✅ Done |
+| /zones/history pagination | ✅ Done |
+| Carbon auto-retrain on window expansion | ✅ Done |
 
-The v1 dataset (`/root/project/datacenter_water_stress/data/processed/us_dc_with_stress.csv`) is the static anchor for this project.
+## License
+
+MIT (matches v1 dataset license). See `LICENSE` (TBD).
+
+## Related projects
+
+- **v1 (datacenter_water_stress)**: Static WUE × climate × basin stress for 1,575 US DCs. Used as the static anchor for the 227 California DC sites in this project.
