@@ -64,8 +64,66 @@ Expected output: 4 services `healthy`, forecast returns LMP in the $20–$60 ran
 ### Stop
 
 ```bash
+# Graceful shutdown — stops all 4 services, removes containers and networks.
+# Volumes (Redis persistence, model files) are kept on the host.
 docker compose down
+
+# If you also started the cron profile (trainer in fetcher mode), bring it down too:
+docker compose --profile cron down
+
+# Hard stop — same as above, but kills containers with SIGKILL (use only if
+# the graceful shutdown hangs on a stuck fetcher cycle).
+docker compose down --timeout 10
+
+# Nuclear option — also delete Redis persistence volume (loses any
+# unflushed LMP history and the carbon retrain queue). Use only when
+# you want a truly clean slate.
+docker compose down -v
 ```
+
+### What survives a shutdown
+
+| Data | Survives? | Where |
+|---|---|---|
+| Trained model files (v0.1, v0.2, ...) | ✅ Yes | `./models/` (host volume) |
+| Model registry (champion, candidates, history) | ✅ Yes | `./models/registry.json` |
+| Redis LMP history (24h of 5-min intervals) | ⚠️ Only with named volume | `redis_data` Docker volume |
+| Trained-on datasets (1y LMP, fuel mix) | ✅ Yes | `./data/processed/` (host volume) |
+| Training artifacts (eval reports, plots) | ✅ Yes | `./artifacts/` (host volume) |
+| Current fetcher cycle output | ❌ No | In-memory only |
+
+To re-launch after a clean shutdown, just `docker compose up -d` again — all state is restored.
+
+### Restarting just one service
+
+```bash
+# Restart nginx (e.g. after config change or stale IP cache)
+docker compose restart nginx
+
+# Restart the API (e.g. after model swap + /admin/reload)
+docker compose restart api
+
+# Restart the fetcher (e.g. if it crashed and missed cycles)
+docker compose restart trainer
+```
+
+The fetcher in particular benefits from `restart trainer` if it crashed mid-cycle — the next 5-min cycle will repopulate Redis from the latest CAISO snapshot.
+
+### Removing all traces
+
+```bash
+# Stop everything, remove containers, networks, AND the redis volume
+docker compose down -v
+
+# Remove the Docker images too (forces a full rebuild on next up)
+docker rmi dc_real_time_api:v0.1 nginx:1.27-alpine redis:7-alpine
+
+# Optional: remove the host-side model registry and training artifacts
+# (DESTRUCTIVE — only do this if you want to start from a clean slate)
+rm -rf models/registry.json models/v0.* artifacts/eval_*.json
+```
+
+After this, `docker compose up -d && docker compose --profile cron up -d trainer && docker exec dc_real_time_trainer python -m src.models.retrain_scheduler --train --auto-promote` will rebuild the registry from scratch by training a fresh v0.1.
 
 ## Architecture
 
