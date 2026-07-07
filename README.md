@@ -15,6 +15,8 @@ The system ingests live data from three sources, trains multi-horizon XGBoost mo
 
 Advisories follow carbon-aware-compute etiquette: **ok / watch / defer / pause** based on LMP thresholds (>$30/$50/$100/MWh).
 
+> **Forecast horizons**: The system now forecasts at **30-minute and 1-hour** horizons only. Longer horizons (2h, 4h) were dropped due to accuracy decay (R² drops from 0.64 at 30m to 0.18 at 4h for LMP, and from 0.74 to 0.65 for carbon).
+
 ## Quick start
 
 ### Prerequisites
@@ -104,6 +106,16 @@ docker compose restart fetcher
 ```
 
 The fetcher in particular benefits from `restart fetcher` if it crashed mid-cycle — the next 5-min cycle will repopulate Redis from the latest CAISO snapshot.
+
+### E2E test
+
+Validates the full cron → retrain → canary loop:
+
+```bash
+bash scripts/e2e_test.sh
+```
+
+Trains a new model version, verifies all 8 model files, registry update, champion symlink, API reload, forecast endpoints, canary routing, and healthchecks. Takes ~6 minutes (training time).
 
 ### Removing all traces
 
@@ -263,7 +275,8 @@ dc_real_time/
 │   └── v0.3/  # 8 model files
 ├── artifacts/                          # eval reports, comparison plots
 ├── scripts/
-│   └── backfill_registry_v01.py       # one-time backfill of v0.1 in registry
+│   ├── backfill_registry_v01.py       # one-time backfill of v0.1 in registry
+│   └── e2e_test.sh                    # D12: full cron → retrain → canary E2E test
 └── docs/
     ├── PROJECT_SUMMARY.md             # full spec
     ├── DECISIONS.md                   # locked design decisions
@@ -320,16 +333,14 @@ docker compose restart nginx
 
 | Item | Status |
 |---|---|
-| D1–D8 (Docker, compose, fetcher, blue/green, real model calls, dedicated fetcher service) | ✅ Done |
+| D1–D8 (Docker, compose, fetcher, blue/green, real model calls) | ✅ Done |
+| D8 full (per-zone LMP history + 22 LMP features at inference) | ✅ Done |
 | D9 (weight-based nginx canary with split_clients + api_canary service) | ✅ Done |
 | D10 (drift detector producing artifacts/drift_log.json) | ✅ Done |
-| D8 full (per-zone LMP history + 22 LMP features at inference) | ✅ Done |
-| D9 (real weight-based canary) | ❌ Not started — nginx canary is location-based only |
-| D10 (drift detector producing `artifacts/drift_log.json`) | ✅ Done — `src/monitoring/drift_detector.py`, runs every 60 min as a compose service |
 | D11 (Plotly.js frontend) | ✅ Done |
-| D12 (E2E test: cron + retrain + canary) | ❌ Not started |
-| Multi-horizon training (30m/1h/2h/4h) | ✅ Done |
-| Per-DC multi-horizon advisory | ✅ Done |
+| D12 (E2E test: cron + retrain + canary) | ✅ Done — `bash scripts/e2e_test.sh` |
+| Multi-horizon training (30m/1h) | ✅ Done |
+| Per-DC per-horizon advisory | ✅ Done |
 | /zones/history pagination | ✅ Done |
 | Carbon auto-retrain on window expansion | ✅ Done |
 

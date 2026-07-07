@@ -38,7 +38,7 @@ MODELS_DIR = Path(os.environ.get('MODELS_DIR', '/app/models/champion'))
 LMP_MODELS = {}     # horizon -> model
 CARBON_MODELS = {}  # horizon -> model
 DEFAULT_HORIZON = '30m'
-SUPPORTED_HORIZONS = ['30m', '1h', '2h', '4h']
+SUPPORTED_HORIZONS = ['30m', '1h']
 
 MODEL_METADATA = {
     "lmp_ratio_loaded": False,
@@ -456,7 +456,7 @@ def forecast(zone: str, horizon: str = '30m'):
 
     Args:
         zone: NP15 | SP15 | ZP26
-        horizon: 30m (default) | 1h | 2h | 4h
+        horizon: 30m (default) | 1h
     """
     if zone not in ['NP15', 'SP15', 'ZP26']:
         raise HTTPException(status_code=404, detail=f"Unknown zone: {zone}")
@@ -559,7 +559,7 @@ def forecast(zone: str, horizon: str = '30m'):
     return {
         "zone": zone,
         "horizon": horizon,
-        "horizon_min": {'30m': 30, '1h': 60, '2h': 120, '4h': 240}[horizon],
+        "horizon_min": {'30m': 30, '1h': 60}[horizon],
         "predicted_at": now.isoformat(),
         "load_mw": load_mw,
         "lmp_ratio_pred": lmp_ratio_pred,
@@ -577,9 +577,9 @@ def dc_forecast(dc_id: str, horizon: str = '30m'):
 
     Args:
         dc_id: e.g. DC-00088
-        horizon: 30m (default) | 1h | 2h | 4h
+        horizon: 30m (default) | 1h
 
-    Returns the cached advisory (all 4 horizons) flattened to the requested
+    Returns the cached advisory (all horizons) flattened to the requested
     horizon, plus metadata. If the requested horizon isn't cached, falls
     back to the 30m value.
     """
@@ -608,14 +608,14 @@ def dc_forecast(dc_id: str, horizon: str = '30m'):
                     'wue': data.get('wue'),
                     'bws_score': data.get('bws_score'),
                     'horizon': horizon,
-                    'horizon_min': {'30m': 30, '1h': 60, '2h': 120, '4h': 240}[horizon],
+                    'horizon_min': {'30m': 30, '1h': 60}[horizon],
                     'lmp_dollar_estimate': h_data.get('lmp_dollar_per_mwh'),
                     'advisory': h_data.get('advisory'),
                     'all_horizons': {
                         h: {
                             'lmp_dollar_estimate': h2.get('lmp_dollar_per_mwh'),
                             'advisory': h2.get('advisory'),
-                        } for h, h2 in horizons.items()
+                        } for h, h2 in horizons.items() if h in SUPPORTED_HORIZONS
                     },
                     'computed_at': data.get('computed_at'),
                     'data_source': 'live',

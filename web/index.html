@@ -153,7 +153,7 @@
   </div>
 
   <div class="chart-container">
-    <h3>Top 10 stressed data centers (worst advisory across 30m/1h/2h/4h)</h3>
+    <h3>Top 10 stressed data centers (worst advisory across 30m/1h)</h3>
     <div id="dcList" style="max-height: 360px; overflow-y: auto;">
       <!-- Rendered by JS — shows top 10 most-stressed DCs with all 4 horizons -->
     </div>
@@ -287,7 +287,7 @@
         .slice(0, 10);
       const el = document.getElementById('dcList');
       if (rows.length === 0) {
-        el.innerHTML = '<p style="color: var(--muted); padding: 8px;">All sampled DCs are in OK advisory across all 4 horizons.</p>';
+        el.innerHTML = '<p style="color: var(--muted); padding: 8px;">All sampled DCs are in OK advisory across all horizons.</p>';
         return;
       }
       el.innerHTML = `
@@ -299,8 +299,6 @@
               <th style="padding: 6px;">MW</th>
               <th style="padding: 6px; text-align: center;">30m</th>
               <th style="padding: 6px; text-align: center;">1h</th>
-              <th style="padding: 6px; text-align: center;">2h</th>
-              <th style="padding: 6px; text-align: center;">4h</th>
             </tr>
           </thead>
           <tbody>
@@ -312,7 +310,7 @@
                   <td style="padding: 6px;"><b>${d.name}</b><br><span style="color: var(--muted); font-size: 11px;">${d.dc_id} · ${d.operator || '—'}</span></td>
                   <td style="padding: 6px;">${d.zone || '—'}</td>
                   <td style="padding: 6px;">${(d.mw_capacity || 0).toFixed(0)}</td>
-                  ${['30m','1h','2h','4h'].map(k => {
+                  ${['30m','1h'].map(k => {
                     const adv = h[k]?.advisory || 'unknown';
                     const lmp = h[k]?.lmp_dollar_estimate;
                     const lmpStr = lmp != null ? `$${lmp.toFixed(0)}` : '—';
