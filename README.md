@@ -235,7 +235,7 @@ dc_real_time/
 ├── README.md                          # this file
 ├── RESUME.md                          # handoff doc for next session
 ├── DOCKER.md                          # Docker usage notes
-├── docker-compose.yml                 # 5 services: fetcher, api, redis, trainer, nginx
+├── docker-compose.yml                 # 6 services: fetcher, api, api_canary, redis, trainer, drift_detector, nginx
 ├── Dockerfile                         # multi-stage, ~30s cold build
 ├── nginx/
 │   ├── nginx.conf                     # blue/green + canary routes
@@ -245,6 +245,7 @@ dc_real_time/
 ├── src/
 │   ├── api/app.py                     # FastAPI: 11 endpoints
 │   ├── data/live_fetcher.py           # 5-min cycle, per-zone LMP, carbon retrain queue
+│   ├── monitoring/drift_detector.py   # PSI-based drift detection, writes drift_log.json
 │   ├── features/build_features.py    # 45 features + targets
 │   └── models/
 │       ├── registry.py                # atomic version + promote
@@ -320,9 +321,11 @@ docker compose restart nginx
 | Item | Status |
 |---|---|
 | D1–D8 (Docker, compose, fetcher, blue/green, real model calls, dedicated fetcher service) | ✅ Done |
+| D9 (weight-based nginx canary with split_clients + api_canary service) | ✅ Done |
+| D10 (drift detector producing artifacts/drift_log.json) | ✅ Done |
 | D8 full (per-zone LMP history + 22 LMP features at inference) | ✅ Done |
 | D9 (real weight-based canary) | ❌ Not started — nginx canary is location-based only |
-| D10 (drift detector producing `artifacts/drift_log.json`) | ❌ Not started — retrain scheduler reads the log but no producer exists |
+| D10 (drift detector producing `artifacts/drift_log.json`) | ✅ Done — `src/monitoring/drift_detector.py`, runs every 60 min as a compose service |
 | D11 (Plotly.js frontend) | ✅ Done |
 | D12 (E2E test: cron + retrain + canary) | ❌ Not started |
 | Multi-horizon training (30m/1h/2h/4h) | ✅ Done |

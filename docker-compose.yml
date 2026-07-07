@@ -160,6 +160,37 @@ services:
     networks:
       - dc_net
 
+  # ---- Drift Detector: monitors feature drift, writes drift_log.json (D10) ----
+  # Runs every 60 min, compares current LMP distributions (from Redis)
+  # against training reference. Triggers retrain when PSI > threshold.
+  drift_detector:
+    build: .
+    image: dc_real_time_api:v0.1
+    container_name: dc_real_time_drift
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - DRIFT_PSI_THRESHOLD=0.2
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data:ro
+      - ./artifacts:/app/artifacts
+      - ./src:/app/src
+    command: ["python", "-m", "src.monitoring.drift_detector", "--loop", "--interval", "3600"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os,redis; r=redis.from_url(os.environ.get('REDIS_URL','redis://redis:6379')); r.ping()\" || exit 1"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks:
+      - dc_net
+
   # ---- Nginx: blue/green + canary reverse proxy (D4 + D7) ----
   nginx:
     image: nginx:1.27-alpine
