@@ -1,17 +1,17 @@
 # =============================================================================
 # dc_real_time — Docker Compose
 # =============================================================================
-# Single VPS deployment. Two services for D2: api + redis.
-# D3 adds trainer, D4 adds nginx.
+# 5 services: fetcher (live data), api (FastAPI), redis (feature store),
+# trainer (retrain on demand), nginx (reverse proxy).
 #
 # Usage:
-#   docker compose up -d              # start everything
-#   docker compose logs -f api        # tail API logs
+#   docker compose up -d              # start all services
+#   docker compose logs -f fetcher    # tail fetcher logs
 #   docker compose down               # stop everything
-#   docker compose restart api       # restart API (reloads model)
+#   docker compose restart api        # reload models after symlink swap
 #
-# Models, data, and artifacts are mounted as volumes from the host
-# so the container reads/writes the same files as the host.
+# Models, data, artifacts, and source code are mounted as volumes from the
+# host so containers read/write the same files and pick up code changes live.
 # =============================================================================
 
 services:
@@ -35,6 +35,7 @@ services:
 
   # ---- API: FastAPI service (D1 + D8 will fill in) ----
   api:
+    build: .
     image: dc_real_time_api:v0.1
     container_name: dc_real_time_api
     restart: unless-stopped
@@ -55,6 +56,8 @@ services:
       - ./artifacts:/app/artifacts
       # Frontend (D11)
       - ./web:/app/web:ro
+      # Live code reload (D13)
+      - ./src:/app/src
     networks:
       - dc_net
 
@@ -81,6 +84,8 @@ services:
       - ./models:/app/models
       - ./data:/app/data:ro
       - ./artifacts:/app/artifacts
+      # Live code reload (D13)
+      - ./src:/app/src
     # Default: just sleep so container stays alive for `docker compose exec`
     command: ["sleep", "infinity"]
     profiles: ["cron"]  # only starts with --profile cron
@@ -93,6 +98,38 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+    networks:
+      - dc_net
+
+  # ---- Fetcher: continuous live data ingestion (D8 full) ----
+  # Runs live_fetcher in --loop mode, refreshing Redis every 5 min.
+  # Without this service, DC forecasts return 404 and zone forecasts
+  # fall back to stale data.
+  fetcher:
+    build: .
+    image: dc_real_time_api:v0.1
+    container_name: dc_real_time_fetcher
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - PROJECT_ROOT=/app
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data:ro
+      - ./src:/app/src
+    command: ["python", "-m", "src.data.live_fetcher", "--loop"]
+    # Override image HEALTHCHECK (which probes :8000 — wrong for fetcher)
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os,redis; r=redis.from_url(os.environ.get('REDIS_URL','redis://redis:6379')); r.ping()\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks:
       - dc_net
 

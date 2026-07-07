@@ -15,6 +15,7 @@ Output:
 import pandas as pd
 import numpy as np
 import json
+import os
 from pathlib import Path
 import xgboost as xgb
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -22,7 +23,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-PROJECT_ROOT = Path('/root/project/dc_real_time')
+PROJECT_ROOT = Path(os.environ.get('PROJECT_ROOT', '/app'))
 PROCESSED = PROJECT_ROOT / 'data' / 'processed'
 ARTIFACTS = PROJECT_ROOT / 'artifacts'
 MODELS = PROJECT_ROOT / 'models' / 'v0.1'

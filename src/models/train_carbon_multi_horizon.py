@@ -30,7 +30,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import os
-PROJECT_ROOT = Path(os.environ.get('PROJECT_ROOT', '/root/project/dc_real_time'))
+PROJECT_ROOT = Path(os.environ.get('PROJECT_ROOT', '/app'))
 PROCESSED = PROJECT_ROOT / 'data' / 'processed'
 ARTIFACTS = PROJECT_ROOT / 'artifacts'
 

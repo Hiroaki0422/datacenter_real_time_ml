@@ -179,6 +179,114 @@
       "status": "champion",
       "notes": "Backfilled: v0.1 was the initial training run before registry.py existed. Symlink was set manually with `ln -sfn models/v0.1 models/champion`. eval_lmp.json contains 4h-horizon metrics; the 5-min model is what serves.",
       "promoted_at": "2026-07-05T01:35:29.254292+00:00"
+    },
+    {
+      "version": "v0.3",
+      "registered_at": "2026-07-07T02:05:16.126757+00:00",
+      "git_sha": "unknown",
+      "data_hash": "f4abbc2c4732",
+      "metrics": {
+        "lmp_ratio": {
+          "30m": {
+            "val_r2": 0.6383654475212097,
+            "val_mae": 0.2664225399494171,
+            "val_rmse": 0.7024763506170106,
+            "test_r2": 0.5151307582855225,
+            "test_mae": 0.5041182637214661,
+            "test_rmse": 1.0043006448812217,
+            "n_train": 155595,
+            "model_path": "models/v0.3/lmp_ratio_30m.json"
+          },
+          "1h": {
+            "val_r2": 0.5570772886276245,
+            "val_mae": 0.2820151150226593,
+            "val_rmse": 0.7576350368079762,
+            "test_r2": 0.43514060974121094,
+            "test_mae": 0.49889469146728516,
+            "test_rmse": 1.0769156155091963,
+            "n_train": 155577,
+            "model_path": "models/v0.3/lmp_ratio_1h.json"
+          },
+          "2h": {
+            "val_r2": 0.40061020851135254,
+            "val_mae": 0.3223692774772644,
+            "val_rmse": 0.8529270683092871,
+            "test_r2": 0.14824992418289185,
+            "test_mae": 0.6239103674888611,
+            "test_rmse": 1.3109129893179177,
+            "n_train": 155541,
+            "model_path": "models/v0.3/lmp_ratio_2h.json"
+          },
+          "4h": {
+            "val_r2": 0.17710036039352417,
+            "val_mae": 0.3500208258628845,
+            "val_rmse": 0.9236122185518004,
+            "test_r2": 0.06757116317749023,
+            "test_mae": 0.6427323818206787,
+            "test_rmse": 1.3248878521512275,
+            "n_train": 155469,
+            "model_path": "models/v0.3/lmp_ratio_4h.json"
+          }
+        },
+        "carbon": {
+          "30m": {
+            "val_r2": 0.740563690662384,
+            "val_mae": 1.6478815078735352,
+            "val_rmse": 2.74032259831029,
+            "test_r2": 0.6232149600982666,
+            "test_mae": 1.2075616121292114,
+            "test_rmse": 2.0208919818141307,
+            "n_train": 34003,
+            "model_path": "models/v0.3/carbon_30m.json"
+          },
+          "1h": {
+            "val_r2": 0.7075760364532471,
+            "val_mae": 1.7602299451828003,
+            "val_rmse": 2.816971847734758,
+            "test_r2": 0.5869444012641907,
+            "test_mae": 1.269280195236206,
+            "test_rmse": 2.0281973568744776,
+            "n_train": 33985,
+            "model_path": "models/v0.3/carbon_1h.json"
+          },
+          "2h": {
+            "val_r2": 0.6772381067276001,
+            "val_mae": 1.7873018980026245,
+            "val_rmse": 2.8186795481739653,
+            "test_r2": 0.4177914261817932,
+            "test_mae": 1.4634219408035278,
+            "test_rmse": 2.2712855690756952,
+            "n_train": 33949,
+            "model_path": "models/v0.3/carbon_2h.json"
+          },
+          "4h": {
+            "val_r2": 0.6440494060516357,
+            "val_mae": 1.7672075033187866,
+            "val_rmse": 2.72499402246782,
+            "test_r2": 0.33471643924713135,
+            "test_mae": 1.5446470975875854,
+            "test_rmse": 2.249794738731638,
+            "n_train": 33877,
+            "model_path": "models/v0.3/carbon_4h.json"
+          }
+        }
+      },
+      "model_paths": {
+        "lmp_ratio": {
+          "30m": "models/v0.3/lmp_ratio_30m.json",
+          "1h": "models/v0.3/lmp_ratio_1h.json",
+          "2h": "models/v0.3/lmp_ratio_2h.json",
+          "4h": "models/v0.3/lmp_ratio_4h.json"
+        },
+        "carbon": {
+          "30m": "models/v0.3/carbon_30m.json",
+          "1h": "models/v0.3/carbon_1h.json",
+          "2h": "models/v0.3/carbon_2h.json",
+          "4h": "models/v0.3/carbon_4h.json"
+        }
+      },
+      "status": "candidate",
+      "notes": "Auto-trained: --train flag set"
     }
   ],
   "history": [

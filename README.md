@@ -29,12 +29,8 @@ Advisories follow carbon-aware-compute etiquette: **ok / watch / defer / pause**
 git clone git@github.com:Hiroaki0422/datacenter_real_time_ml.git
 cd datacenter_real_time_ml
 
-# Start the full stack
+# Start the full stack (fetcher, API, Redis, nginx)
 docker compose up -d
-
-# Start the data fetcher (5-min cycle, populates Redis with live CAISO data)
-docker compose --profile cron up -d trainer
-docker exec dc_real_time_trainer python -m src.data.live_fetcher
 
 # Open the dashboard
 open http://localhost/
@@ -59,16 +55,16 @@ curl 'http://localhost/zones/history?limit=12' | python3 -m json.tool
 curl 'http://localhost/sites' | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{d[\"count\"]} sites')"
 ```
 
-Expected output: 4 services `healthy`, forecast returns LMP in the $20–$60 range depending on grid conditions.
+Expected output: 5 services `healthy` (fetcher, api, redis, trainer, nginx), forecast returns LMP in the $20–$60 range depending on grid conditions.
 
 ### Stop
 
 ```bash
-# Graceful shutdown — stops all 4 services, removes containers and networks.
+# Graceful shutdown — stops all 5 services, removes containers and networks.
 # Volumes (Redis persistence, model files) are kept on the host.
 docker compose down
 
-# If you also started the cron profile (trainer in fetcher mode), bring it down too:
+# If you also started the trainer (cron profile), bring it down too:
 docker compose --profile cron down
 
 # Hard stop — same as above, but kills containers with SIGKILL (use only if
@@ -104,10 +100,10 @@ docker compose restart nginx
 docker compose restart api
 
 # Restart the fetcher (e.g. if it crashed and missed cycles)
-docker compose restart trainer
+docker compose restart fetcher
 ```
 
-The fetcher in particular benefits from `restart trainer` if it crashed mid-cycle — the next 5-min cycle will repopulate Redis from the latest CAISO snapshot.
+The fetcher in particular benefits from `restart fetcher` if it crashed mid-cycle — the next 5-min cycle will repopulate Redis from the latest CAISO snapshot.
 
 ### Removing all traces
 
@@ -123,7 +119,10 @@ docker rmi dc_real_time_api:v0.1 nginx:1.27-alpine redis:7-alpine
 rm -rf models/registry.json models/v0.* artifacts/eval_*.json
 ```
 
-After this, `docker compose up -d && docker compose --profile cron up -d trainer && docker exec dc_real_time_trainer python -m src.models.retrain_scheduler --train --auto-promote` will rebuild the registry from scratch by training a fresh v0.1.
+After this, the fetcher auto-starts with `docker compose up -d`. To retrain and rebuild the registry from scratch:
+```bash
+docker compose run --rm trainer python -m src.models.retrain_scheduler --train --auto-promote
+```
 
 ## Architecture
 
@@ -139,22 +138,28 @@ After this, `docker compose up -d && docker compose --profile cron up -d trainer
               │  :8000   │  GET /forecast, /dc/{id}/forecast, /sites, /zones/history, /admin/reload
               └────┬─────┘
                    ↓
+              ┌──────────┐
+              │  Redis   │  Online feature store (per-zone features, per-DC advisories, LMP history)
+              │  :6379   │  Populated by fetcher, read by API
+              └────┬─────┘
+                   ↓
          ┌─────────┴──────────┐
          ↓                    ↓
-    ┌─────────┐         ┌──────────┐
-    │  Redis  │ ←───────│ Trainer  │  python -m src.data.live_fetcher (every 5 min)
-    │  :6379  │ fetcher │          │  python -m src.models.retrain_scheduler (drift/queue/age)
-    └─────────┘         └──────────┘
-         ↑                       ↓
-   features:zone:{Z}:now        python -m src.models.train_lmp_multi_horizon --version vN
-   features:dc:{id}:now         python -m src.models.train_carbon_multi_horizon --version vN
-   features:zone:{Z}:lmp_history
-   meta:last_fetch
-   meta:carbon_retrain_queued
-   meta:last_carbon_data_date
+    ┌──────────┐        ┌──────────┐
+    │ Fetcher  │        │ Trainer  │  python -m src.models.retrain_scheduler (drift/queue/age)
+    │ :--loop  │        │ :on-call │  python -m src.models.train_lmp_multi_horizon --version vN
+    │ 5-min    │        │          │  python -m src.models.train_carbon_multi_horizon --version vN
+    └──────────┘        └──────────┘
+         │
+   Redis keys written (fetcher):
+   features:zone:{Z}:now        — per-zone live features + predicted LMP
+   features:dc:{id}:now         — per-DC advisory (all 4 horizons)
+   features:zone:{Z}:lmp_history — rolling 24h of real CAISO LMP
+   meta:last_fetch              — cycle timestamp
+   meta:carbon_retrain_queued   — carbon retrain trigger
 ```
 
-**MLOPs boundary**: trainer runs OUTSIDE the API (in a separate service). Model swap is INSIDE — atomic symlink `models/champion -> models/{version}` plus `/admin/reload` endpoint.
+**MLOPs boundary**: fetcher and trainer run OUTSIDE the API (separate services). Model swap is INSIDE — atomic symlink `models/champion -> models/{version}` plus `/admin/reload` endpoint. The fetcher runs continuously in `--loop` mode and is auto-started by `docker compose up -d`.
 
 ## Endpoints
 
@@ -179,7 +184,7 @@ lmp_ratio_30m.json    lmp_ratio_1h.json    lmp_ratio_2h.json    lmp_ratio_4h.jso
 carbon_30m.json       carbon_1h.json       carbon_2h.json       carbon_4h.json
 ```
 
-The fetcher writes all 4 horizon values per DC, the API serves any of them via `?horizon=X`. v0.2 is the current champion with val R²:
+The fetcher writes all 4 horizon values per DC, the API serves any of them via `?horizon=X`. v0.3 is the current champion with val R²:
 
 | Horizon | LMP R² | Carbon R² |
 |---|---|---|
@@ -206,19 +211,19 @@ docker exec dc_real_time_trainer python -m src.models.retrain_scheduler --check
 docker exec dc_real_time_trainer python -m src.models.retrain_scheduler --train --auto-promote
 ```
 
-The fetcher also runs a 5-min cycle and, in normal operation, starts the trainer container for cron-driven fetches via `docker compose --profile cron up -d trainer`.
+The fetcher runs continuously as a dedicated service (auto-started with `docker compose up -d`). The trainer is on-demand via `docker compose run --rm trainer` or the cron profile.
 
 ## Training pipeline
 
 ```bash
 # Retrain from scratch (LMP + carbon, all 4 horizons)
-docker exec dc_real_time_trainer bash -c "PROJECT_ROOT=/app MODELS_DIR=/app/models python -m src.models.retrain_scheduler --train"
+docker compose run --rm trainer python -m src.models.retrain_scheduler --train
 
 # Just LMP
-docker exec dc_real_time_trainer python -m src.models.train_lmp_multi_horizon --version v0.3
+docker compose run --rm trainer python -m src.models.train_lmp_multi_horizon --version v0.4
 
 # Just carbon
-docker exec dc_real_time_trainer python -m src.models.train_carbon_multi_horizon --version v0.3
+docker compose run --rm trainer python -m src.models.train_carbon_multi_horizon --version v0.4
 ```
 
 Training takes ~6 minutes (LMP ~4 min, carbon ~2 min). Output: comparison CSV + plot in `artifacts/`, per-version models in `models/{version}/`.
@@ -230,7 +235,7 @@ dc_real_time/
 ├── README.md                          # this file
 ├── RESUME.md                          # handoff doc for next session
 ├── DOCKER.md                          # Docker usage notes
-├── docker-compose.yml                 # 4 services: api, redis, trainer, nginx
+├── docker-compose.yml                 # 5 services: fetcher, api, redis, trainer, nginx
 ├── Dockerfile                         # multi-stage, ~30s cold build
 ├── nginx/
 │   ├── nginx.conf                     # blue/green + canary routes
@@ -250,10 +255,11 @@ dc_real_time/
 │   ├── processed/                     # 1y CAISO LMP, fuel mix, Open-Meteo (parquet)
 │   └── external/ca_dc_sites.csv       # 227 CA DC sites
 ├── models/                            # registry: champion symlink + versioned dirs
-│   ├── registry.json                  # v0.1 (history), v0.2 (champion)
-│   ├── champion -> v0.2
+│   ├── registry.json                  # v0.1 (history), v0.3 (champion)
+│   ├── champion -> v0.3
 │   ├── v0.1/  (legacy)
-│   └── v0.2/  # 8 model files
+│   ├── v0.2/  (archived)
+│   └── v0.3/  # 8 model files
 ├── artifacts/                          # eval reports, comparison plots
 ├── scripts/
 │   └── backfill_registry_v01.py       # one-time backfill of v0.1 in registry
@@ -273,11 +279,11 @@ dc_real_time/
 ### Logs
 
 ```bash
-# Tail all 4 services
+# Tail all services
 docker compose logs -f
 
 # Just the fetcher (every 5 min cycle)
-docker logs -f dc_real_time_trainer 2>&1 | grep -E "Live fetch|Per-zone|Carbon retrain"
+docker compose logs -f fetcher
 ```
 
 ### Health checks
@@ -313,7 +319,7 @@ docker compose restart nginx
 
 | Item | Status |
 |---|---|
-| D1–D8 (Docker, compose, fetcher, blue/green, real model calls) | ✅ Done |
+| D1–D8 (Docker, compose, fetcher, blue/green, real model calls, dedicated fetcher service) | ✅ Done |
 | D8 full (per-zone LMP history + 22 LMP features at inference) | ✅ Done |
 | D9 (real weight-based canary) | ❌ Not started — nginx canary is location-based only |
 | D10 (drift detector producing `artifacts/drift_log.json`) | ❌ Not started — retrain scheduler reads the log but no producer exists |
