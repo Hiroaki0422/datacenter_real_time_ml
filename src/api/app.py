@@ -33,7 +33,7 @@ app = FastAPI(
 )
 
 # === Model loading ===
-MODELS_DIR = Path('/app/models/champion')
+MODELS_DIR = Path(os.environ.get('MODELS_DIR', '/app/models/champion'))
 # Per-horizon model dict: {horizon: (lmp_model, carbon_model, loaded_at)}
 LMP_MODELS = {}     # horizon -> model
 CARBON_MODELS = {}  # horizon -> model

@@ -61,6 +61,33 @@ services:
     networks:
       - dc_net
 
+  # ---- API Canary: green deployment for weight-based canary (D9) ----
+  # Runs the same image but tagged as green in nginx split_clients.
+  # Uses champion model by default; override MODELS_DIR to test a candidate.
+  api_canary:
+    build: .
+    image: dc_real_time_api:v0.1
+    container_name: dc_real_time_api_canary
+    restart: unless-stopped
+    # No host port — accessed internally via nginx only
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - MODEL_VERSION=v0.1
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - MODELS_DIR=/app/models/champion
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data:ro
+      - ./artifacts:/app/artifacts
+      - ./web:/app/web:ro
+      - ./src:/app/src
+    networks:
+      - dc_net
+
   # ---- Trainer: cron-driven retraining (D3 + D5) ----
   # Run with: docker compose run --rm trainer
   # Or in cron: docker compose exec trainer python -m src.models.retrain_scheduler
@@ -148,6 +175,8 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
     depends_on:
       api:
+        condition: service_healthy
+      api_canary:
         condition: service_healthy
     networks:
       - dc_net
