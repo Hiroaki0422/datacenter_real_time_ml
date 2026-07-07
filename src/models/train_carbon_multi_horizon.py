@@ -318,9 +318,11 @@ def main(version: str = 'v0.1') -> dict:
         y_val = val[target_col].values.astype(np.float32)
         y_test = test[target_col].values.astype(np.float32)
 
+        alpha = 0.9
         model = xgb.XGBRegressor(
-            objective='reg:squarederror',
-            eval_metric='rmse',
+            objective='reg:quantileerror',
+            quantile_alpha=alpha,
+            eval_metric='mae',
             max_depth=5,
             learning_rate=0.05,
             n_estimators=500,
@@ -347,6 +349,12 @@ def main(version: str = 'v0.1') -> dict:
         test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
         test_r2 = r2_score(y_test, y_test_pred) if y_test.std() > 0 else 0
 
+        # Quantile-specific metrics
+        test_pinball = float(np.mean(np.where(y_test >= y_test_pred,
+                                               alpha * (y_test - y_test_pred),
+                                               (1 - alpha) * (y_test_pred - y_test))))
+        test_coverage = float(np.mean(y_test <= y_test_pred))
+
         # Non-zero-only metrics
         nz_val = y_val > 0
         nz_test = y_test > 0
@@ -363,6 +371,7 @@ def main(version: str = 'v0.1') -> dict:
         print(f"          (non-zero: MAE={val_mae_nz:.4f}, RMSE={val_rmse_nz:.4f})")
         print(f"  Test:  MAE={test_mae:.4f}, RMSE={test_rmse:.4f}, R²={test_r2:.4f}")
         print(f"          (non-zero: MAE={test_mae_nz:.4f}, RMSE={test_rmse_nz:.4f})")
+        print(f"  Quantile (α={alpha}): pinball={test_pinball:.4f}, coverage={test_coverage:.3f}")
         print(f"  Baseline (predict 0): MAE={baseline_mae:.4f}, RMSE={baseline_rmse:.4f}")
         print(f"  Best iter: {model.best_iteration}")
 

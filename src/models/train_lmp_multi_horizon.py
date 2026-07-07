@@ -180,9 +180,11 @@ def main(version: str = 'v0.1') -> dict:
         y_val = val[target_col].values.astype(np.float32)
         y_test = test[target_col].values.astype(np.float32)
 
+        alpha = 0.9
         model = xgb.XGBRegressor(
-            objective='reg:squarederror',
-            eval_metric='rmse',
+            objective='reg:quantileerror',
+            quantile_alpha=alpha,
+            eval_metric='mae',
             max_depth=6,
             learning_rate=0.05,
             n_estimators=500,
@@ -209,6 +211,12 @@ def main(version: str = 'v0.1') -> dict:
         test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
         test_r2 = r2_score(y_test, y_test_pred) if y_test.std() > 0 else 0
 
+        # Quantile-specific metrics
+        test_pinball = float(np.mean(np.where(y_test >= y_test_pred,
+                                               alpha * (y_test - y_test_pred),
+                                               (1 - alpha) * (y_test_pred - y_test))))
+        test_coverage = float(np.mean(y_test <= y_test_pred))
+
         # Predict-mean baseline
         mean_pred = float(y_train.mean())
         val_mae_mean = float(np.abs(y_val - mean_pred).mean())
@@ -217,6 +225,7 @@ def main(version: str = 'v0.1') -> dict:
 
         print(f"\n  Val:   MAE={val_mae:.4f}, RMSE={val_rmse:.4f}, R²={val_r2:.4f}")
         print(f"  Test:  MAE={test_mae:.4f}, RMSE={test_rmse:.4f}, R²={test_r2:.4f}")
+        print(f"  Quantile (α={alpha}): pinball={test_pinball:.4f}, coverage={test_coverage:.3f}")
         print(f"  Baseline (predict mean): Val MAE={val_mae_mean:.4f}, R²={val_r2_mean:.4f}")
         print(f"  Best iter: {model.best_iteration}")
 
@@ -231,6 +240,8 @@ def main(version: str = 'v0.1') -> dict:
             'best_iteration': int(model.best_iteration),
             'val_mae': val_mae, 'val_rmse': val_rmse, 'val_r2': val_r2,
             'test_mae': test_mae, 'test_rmse': test_rmse, 'test_r2': test_r2,
+            'test_pinball': test_pinball,
+            'test_coverage': test_coverage,
             'baseline_predict_mean_mae': val_mae_mean,
             'baseline_predict_mean_r2': val_r2_mean,
             'n_train': len(train), 'n_val': len(val), 'n_test': len(test),
